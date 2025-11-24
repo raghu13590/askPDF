@@ -1,0 +1,11 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.0
+pdfminer.six==20231228
+spacy==3.7.4
+supertonic
+onnxruntime==1.19.2
+numpy==1.26.4
+soundfile==0.12.1
+aiofiles==24.1.0
+pydub==0.25.1
+python-multipart==0.0.9
