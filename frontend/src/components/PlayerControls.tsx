@@ -35,9 +35,18 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     }
   }, [selectedVoice]);
 
-  // Stop playback when sentences changes (new PDF uploaded)
+  // Stop playback when sentences changes (new PDF uploaded or active source switched)
   useEffect(() => {
-    stop();
+    // If we're jumping to a new source, the playRequestId effect will handle it.
+    // We only want to auto-stop if this is a passive change (like uploading a new PDF).
+    if (playRequestId !== null) return;
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.onended = null;
+    }
+    setIsPlaying(false);
   }, [sentences]);
 
   async function playSentence(id: number) {

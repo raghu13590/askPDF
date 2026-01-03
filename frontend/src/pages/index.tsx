@@ -8,11 +8,14 @@ import ChatInterface from "../components/ChatInterface";
 type Sentence = { id: number; text: string; bboxes: any[] };
 
 export default function Home() {
-  const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [pdfSentences, setPdfSentences] = useState<Sentence[]>([]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [currentId, setCurrentId] = useState<number | null>(null);
+  const [activeSource, setActiveSource] = useState<'pdf' | 'chat'>('pdf');
+  const [currentPdfId, setCurrentPdfId] = useState<number | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<number | null>(null);
   const [playRequestId, setPlayRequestId] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [chatSentences, setChatSentences] = useState<any[]>([]);
 
   // Shared embedding model for both upload and chat
   const [embedModel, setEmbedModel] = useState("");
@@ -118,11 +121,13 @@ export default function Home() {
               <PdfUploader
                 embedModel={embedModel}
                 onUploaded={(data) => {
-                  setSentences(data.sentences);
+                  setPdfSentences(data.sentences);
                   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                   setPdfUrl(`${apiBase}${data.pdfUrl}?t=${Date.now()}`);
-                  setCurrentId(null);
+                  setCurrentPdfId(null);
+                  setCurrentChatId(null);
                   setPlayRequestId(null);
+                  setActiveSource('pdf');
                 }}
               />
 
@@ -137,13 +142,14 @@ export default function Home() {
           </Box>
 
           <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            {sentences.length > 0 && pdfUrl ? (
+            {pdfSentences.length > 0 && pdfUrl ? (
               <PdfViewer
                 pdfUrl={pdfUrl}
-                sentences={sentences}
-                currentId={currentId}
+                sentences={pdfSentences}
+                currentId={activeSource === 'pdf' ? currentPdfId : null}
                 onJump={(id) => {
-                  setCurrentId(id);
+                  setActiveSource('pdf');
+                  setCurrentPdfId(id);
                   setPlayRequestId(id);
                 }}
                 autoScroll={autoScroll}
@@ -156,13 +162,17 @@ export default function Home() {
             )}
           </Box>
 
-          {sentences.length > 0 && pdfUrl && (
+          {pdfSentences.length > 0 && pdfUrl && (
             <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
               <PlayerControls
-                sentences={sentences}
-                currentId={currentId}
+                sentences={activeSource === 'pdf' ? pdfSentences : chatSentences}
+                currentId={activeSource === 'pdf' ? currentPdfId : currentChatId}
                 onCurrentChange={(id) => {
-                  setCurrentId(id);
+                  if (activeSource === 'pdf') {
+                    setCurrentPdfId(id);
+                  } else {
+                    setCurrentChatId(id);
+                  }
                   setPlayRequestId(null);
                 }}
                 playRequestId={playRequestId}
@@ -172,7 +182,7 @@ export default function Home() {
         </Box>
 
         {/* Resizable Divider */}
-        {sentences.length > 0 && pdfUrl && (
+        {pdfSentences.length > 0 && pdfUrl && (
           <Box
             onMouseDown={handleMouseDown}
             sx={{
@@ -199,14 +209,25 @@ export default function Home() {
         )}
 
         {/* Right Column: Chat Interface */}
-        {sentences.length > 0 && pdfUrl && (
+        {pdfSentences.length > 0 && pdfUrl && (
           <Box sx={{
             width: isResizing ? 'var(--chat-width, 400px)' : chatWidth,
             height: '100%',
             transition: isResizing ? 'none' : 'width 0.1s ease-out',
             bgcolor: 'background.paper'
           }}>
-            <ChatInterface embedModel={embedModel} />
+            <ChatInterface
+              embedModel={embedModel}
+              chatSentences={chatSentences}
+              setChatSentences={setChatSentences}
+              currentChatId={currentChatId}
+              activeSource={activeSource}
+              onJump={(id) => {
+                setActiveSource('chat');
+                setCurrentChatId(id);
+                setPlayRequestId(id);
+              }}
+            />
           </Box>
         )}
 

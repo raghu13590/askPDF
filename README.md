@@ -1,4 +1,4 @@
-# AskPDF
+# askpdf
 
 A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG (Retrieval Augmented Generation)**, and **AI chat** capabilities. Upload a PDF, have it read aloud with synchronized text highlighting, and chat with your document using AI.
 
@@ -68,19 +68,40 @@ A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/raghu13590/AskPDF.git
-cd AskPDF
+git clone https://github.com/raghu13590/askpdf.git
+cd askpdf
 ```
 
 ### 2. Start Your Local LLM Server
 
 The application expects an OpenAI-compatible API at \`http://localhost:12434\`.
 
+
 **Option A: Using Docker Model Runner (DMR) - Recommended Default**
-DMR is built into Docker Desktop and runs on port \`12434\` by default.
-\`\`\`bash
+DMR is built into Docker Desktop and runs on port `12434` by default.
+
+```bash
 # Ensure Docker Desktop is running and DMR is enabled
-\`\`\`
+```
+
+**Installing Models in DMR**
+
+DMR requires you to download and import models manually. Follow these steps to install the required models:
+
+1. **Download the model files** from Hugging Face or your preferred source:
+  - LLM Model (e.g., `ai/qwen3:latest`): [Qwen3 on Hugging Face](https://huggingface.co/Qwen/Qwen1.5-7B-Chat)
+  - Embedding Model (e.g., `ai/nomic-embed-text-v1.5:latest`): [nomic-embed-text-v1.5 on Hugging Face](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5)
+
+2. **Import models into DMR** using the DMR UI or CLI:
+  - Open Docker Desktop, go to the DMR extension, and use the "Import Model" button to add the downloaded models.
+  - Alternatively, use the DMR CLI (if available) to import models:
+    ```bash
+    dmr import <path-to-model-directory>
+    ```
+
+3. **Verify models are available** in the DMR UI under the "Models" tab.
+
+> **Note:** Model names in the app (e.g., `ai/qwen3:latest`, `ai/nomic-embed-text-v1.5:latest`) must match the names you assign in DMR.
 
 **Option B: Using Ollama**
 Ollama runs on port `11434` by default. To use it with this app without changing code, start it on port `12434`:
@@ -153,7 +174,7 @@ docker-compose up --build
 ## 📁 Project Structure
 
 ```
-AskPDF/
+askpdf/
 ├── docker-compose.yml          # Multi-service orchestration
 ├── backend/
 │   ├── Dockerfile
@@ -398,4 +419,4 @@ This project uses the following third-party technologies:
 
 ## 📧 Contact
 
-For questions, issues, or suggestions, please open an issue on the [GitHub repository](https://github.com/raghu13590/AskPDF).
+For questions, issues, or suggestions, please open an issue on the [GitHub repository](https://github.com/raghu13590/askpdf).
