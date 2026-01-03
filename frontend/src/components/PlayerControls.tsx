@@ -15,11 +15,22 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [voices, setVoices] = useState<string[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>("M1.json");
+  const [selectedVoice, setSelectedVoice] = useState<string>("");
   const [speed, setSpeed] = useState<number>(1.0);
 
   useEffect(() => {
-    getVoices().then(setVoices);
+    async function fetchVoices() {
+      try {
+        const voicesData = await getVoices();
+        setVoices(voicesData);
+        if (voicesData.length > 0 && !selectedVoice) {
+          setSelectedVoice(voicesData[0]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch voices", err);
+      }
+    }
+    fetchVoices();
   }, []);
 
   // React to external play requests (double‑click)
@@ -30,7 +41,7 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
 
   // Trigger playback update when voice changes
   useEffect(() => {
-    if (isPlaying && currentId !== null) {
+    if (isPlaying && currentId !== null && selectedVoice !== "") { // Only re-play if a voice is actually selected
       void playSentence(currentId);
     }
   }, [selectedVoice]);
@@ -50,6 +61,10 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
   }, [sentences]);
 
   async function playSentence(id: number) {
+    if (selectedVoice === "") {
+      console.warn("No voice selected, skipping playback.");
+      return;
+    }
     const audio = audioRef.current;
     if (!audio) return;
 

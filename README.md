@@ -7,7 +7,7 @@ A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG
 ### 📄 Reading & TTS
 - **Unified Experience**: Seamlessly switch between reading the PDF and listening to chat responses
 - **Intelligent Text Processing**: Robust sentence segmentation with support for Markdown and non-punctuated text
-- **High-Quality TTS**: Local speech synthesis using Supertonic diffusion models
+- **High-Quality TTS**: Local speech synthesis using [Kokoro-82M](https://github.com/hexgrad/kokoro)
 - **Visual Tracking**: Synchronized sentence highlighting in PDF and message highlighting in Chat
 - **Interactive Navigation**: Double-click any sentence in the PDF or any message in the Chat to start playback
 - **Centralized Controls**: Unified player in the footer manages all audio sources (Speed 0.5x - 2.0x)
@@ -156,7 +156,7 @@ docker-compose up --build
 | **FastAPI** | Web framework for REST APIs |
 | **PyMuPDF (fitz)** | PDF parsing with character-level coordinates |
 | **spaCy** | NLP for sentence segmentation |
-| **Supertonic** | Neural TTS with ONNX runtime |
+| **Kokoro** | Neural TTS with 82M parameters |
 
 ### RAG Service
 | Technology | Purpose |
@@ -186,7 +186,7 @@ askpdf/
 │       ├── main.py             # FastAPI app, upload & TTS endpoints
 │       ├── pdf_parser.py       # PyMuPDF text extraction with coordinates
 │       ├── nlp.py              # spaCy sentence segmentation
-│       └── tts.py              # Supertonic TTS synthesis (helper.py downloaded at build)
+│       └── tts.py              # Kokoro TTS synthesis
 ├── rag_service/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -329,7 +329,7 @@ Health check endpoint.
 
 ### Voice Styles
 
-Voice styles are located in `/models/supertonic/voice_styles/` inside the backend container. Available options are fetched dynamically via the `/api/voices` endpoint.
+Voice styles (voices) are handled by the Kokoro engine. Available options are discovered dynamically from the system and populated in the UI dropdown.
 
 ### TTS Parameters
 
@@ -377,7 +377,7 @@ User clicks Play or double-clicks sentence
   ↓
 Frontend: Request /api/tts with sentence text
   ↓
-Backend: Supertonic synthesizes audio → WAV file
+Backend: Kokoro synthesizes audio → WAV file
   ↓
 Frontend: Play audio, highlight current sentence
   ↓
@@ -404,7 +404,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📄 License
 
 This project uses the following third-party technologies:
-- [Supertonic](https://huggingface.co/Supertone/supertonic) - Text-to-speech model
+- [Kokoro](https://github.com/hexgrad/kokoro) - Text-to-speech model
 - [spaCy](https://spacy.io/) - Natural language processing
 - [LangChain](https://langchain.com/) - LLM framework
 - [LangGraph](https://github.com/langchain-ai/langgraph) - Stateful AI workflows
@@ -414,7 +414,7 @@ This project uses the following third-party technologies:
 
 ## 🙏 Acknowledgments
 
-- **Supertone** for high-quality TTS models
+- **hexgrad** for the amazing Kokoro-82M model
 - **spaCy** for robust NLP capabilities
 - **LangChain** team for the excellent LLM framework
 - **Qdrant** for the powerful vector database

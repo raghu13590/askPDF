@@ -140,7 +140,7 @@ async def get_voices():
 @app.post(f"{API_PREFIX}/tts")
 async def synthesize_sentence(payload: dict):
     text = payload.get("text")
-    voice = payload.get("voice", "M1.json")
+    voice = payload.get("voice") # No default here, let tts_sentence_to_wav handle it
     speed = payload.get("speed", 1.0)
     
     if not text:

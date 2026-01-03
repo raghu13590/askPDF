@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libsndfile1 \
     curl \
-    git-lfs \
+    espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -19,17 +19,16 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 RUN pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
 
-# Create model directories
-RUN mkdir -p /models/supertonic /data/audio
+# Create data and model directories
+RUN mkdir -p /data/audio /models/kokoro
 
-# Clone Hugging Face repo with ONNX models + voice styles
-RUN git lfs install && git clone https://huggingface.co/Supertone/supertonic /models/supertonic
+# Clone Kokoro repo to get voices
+RUN git clone --depth 1 https://github.com/hexgrad/kokoro /tmp/kokoro-repo && \
+    mv /tmp/kokoro-repo/voices /models/kokoro/voices && \
+    rm -rf /tmp/kokoro-repo
 
 # Copy backend app code
 COPY backend/app /app/app
-
-# Download helper script
-RUN curl -o /app/app/helper.py https://raw.githubusercontent.com/supertone-inc/supertonic/main/py/helper.py
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
