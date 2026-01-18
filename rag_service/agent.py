@@ -1,8 +1,29 @@
+import asyncio
 from typing import TypedDict, List, Annotated
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from models import get_llm, get_embedding_model
 from vectordb.qdrant import QdrantAdapter
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def invoke_with_retry(func, *args, **kwargs):
+    """Retries a call if it fails with a 503 model loading error"""
+    max_retries = 10
+    delay = 5
+    for i in range(max_retries):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            err_str = str(e)
+            if "503" in err_str and ("loading" in err_str.lower() or "unavailable" in err_str.lower()):
+                logger.warning(f"Model is loading (503). Retrying in {delay}s... (Attempt {i+1}/{max_retries})")
+                await asyncio.sleep(delay)
+                continue
+            raise e
+    raise Exception("Max retries reached while waiting for model to load.")
+
 
 class AgentState(TypedDict):
     question: str
@@ -23,7 +44,7 @@ async def retrieve_node(state: AgentState):
     
     embed_model = get_embedding_model(emb_model_name)
     # embed_query is usually sync in langchain integration unless using aembed_query
-    query_vector = await embed_model.aembed_query(question)
+    query_vector = await invoke_with_retry(embed_model.aembed_query, question)
     
     collection_name = state.get("collection_name")
     if not collection_name:
@@ -54,7 +75,7 @@ async def generate_node(state: AgentState):
     messages.extend(state.get("chat_history", []))
     messages.append(HumanMessage(content=question))
     
-    response = await llm.ainvoke(messages)
+    response = await invoke_with_retry(llm.ainvoke, messages)
     return {"answer": response.content}
 
 # Define Graph

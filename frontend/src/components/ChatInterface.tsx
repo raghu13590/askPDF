@@ -50,6 +50,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isModelWarming, setIsModelWarming] = useState(false);
     const [indexingStatus, setIndexingStatus] = useState<'checking' | 'indexing' | 'ready' | 'error'>('checking');
     const [collectionName, setCollectionName] = useState<string | null>(null);
 
@@ -176,8 +177,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
+        setIsModelWarming(false);
 
         try {
+            // First check if models are ready to provide better UI feedback
+            const checkModel = async (modelName: string) => {
+                try {
+                    const res = await fetch(`${ragApiUrl}/health/model?model=${encodeURIComponent(modelName)}`);
+                    if (!res.ok) return true; // If endpoint is down or 404, don't show warming message
+                    const data = await res.json();
+                    return data.ready;
+                } catch (e) {
+                    return true; // Default to true if check fails, let backend handle it
+                }
+            };
+
+            const [llmReady, embedReady] = await Promise.all([
+                checkModel(llmModel),
+                checkModel(embedModel)
+            ]);
+
+            if (!llmReady || !embedReady) {
+                setIsModelWarming(true);
+            }
+
             const resp = await fetch(`${ragApiUrl}/chat`, {
                 method: 'POST',
                 headers: {
@@ -192,14 +215,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 })
             });
 
+            if (!resp.ok) {
+                const errorData = await resp.json();
+                throw new Error(errorData.detail || "Failed to get response");
+            }
+
             const data = await resp.json();
             const botMsg: Message = { role: 'assistant', content: data.answer };
             setMessages(prev => [...prev, botMsg]);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Error: Failed to get response." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message || "Failed to get response."}` }]);
         } finally {
             setLoading(false);
+            setIsModelWarming(false);
         }
     };
 
@@ -279,38 +308,45 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div ref={messagesEndRef} />
             </List>
 
-            <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                    fullWidth
-                    variant="outlined"
-                    multiline
-                    maxRows={10}
-                    placeholder={!llmModel || !embedModel ? "Select LLM model first..." : "Ask a question..." + (input ? "\n(Shift+Enter for new line)" : "")}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSend();
-                        }
-                    }}
-                    disabled={loading || !llmModel || !embedModel || indexingStatus !== 'ready'}
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            bgcolor: 'white',
-                            '& fieldset': {
-                                borderColor: 'primary.light',
-                                borderWidth: '1px',
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {isModelWarming && (
+                    <Typography variant="caption" sx={{ color: 'info.main', textAlign: 'center', fontStyle: 'italic' }}>
+                        Bringing the AI model online, this may take a moment...
+                    </Typography>
+                )}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                        fullWidth
+                        variant="outlined"
+                        multiline
+                        maxRows={10}
+                        placeholder={!llmModel || !embedModel ? "Select LLM model first..." : "Ask a question..." + (input ? "\n(Shift+Enter for new line)" : "")}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
+                        disabled={loading || !llmModel || !embedModel || indexingStatus !== 'ready'}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                bgcolor: 'white',
+                                '& fieldset': {
+                                    borderColor: 'primary.light',
+                                    borderWidth: '1px',
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: 'primary.main',
+                                },
                             },
-                            '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                            },
-                        },
-                    }}
-                />
-                <IconButton color="primary" onClick={handleSend} disabled={loading || !llmModel || !embedModel || indexingStatus !== 'ready'}>
-                    <SendIcon />
-                </IconButton>
+                        }}
+                    />
+                    <IconButton color="primary" onClick={handleSend} disabled={loading || !llmModel || !embedModel || indexingStatus !== 'ready'}>
+                        <SendIcon />
+                    </IconButton>
+                </Box>
             </Box>
         </Paper>
     );

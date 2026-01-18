@@ -107,6 +107,13 @@ async def get_models():
         # Return defaults if connection fails (e.g. while building)
         return {"data": [{"id": "ai/qwen3:latest"}, {"id": "ai/nomic-embed-text-v1.5:latest"}], "error": str(e)}
 
+@app.get("/health/model")
+async def model_health_endpoint(model: str):
+    """Specific check for a model's availability"""
+    from models import is_model_ready
+    ready = await is_model_ready(model)
+    return {"model": model, "ready": ready}
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
