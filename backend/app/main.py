@@ -1,176 +1,135 @@
+
+
+"""
+main.py
+--------
+FastAPI application for PDF Text-to-Speech (TTS) and Retrieval-Augmented Generation (RAG) services.
+
+Features:
+- Upload PDF files, extract sentences and bounding boxes, and trigger RAG indexing
+- Synthesize audio for sentences using TTS
+- List available TTS voices/styles
+- Check RAG indexing status
+- Serve static and audio files
+
+Environment Variables:
+- RAG_SERVICE_URL: URL for the RAG service (default: http://rag-service:8000)
+
+Author: [Your Name]
+Date: [Update as needed]
+"""
 import os
-import httpx
 import uuid
 import hashlib
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .pdf_parser import extract_text_with_coordinates
-from .nlp import split_into_sentences
+
+# Local imports
 from .tts import tts_sentence_to_wav, list_voice_styles
+from .pdf_service import PDFService
+
+
 
 API_PREFIX = "/api"
 AUDIO_DIR = "/data/audio"
+# RAG service URL (can be overridden by environment variable)
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://rag-service:8000")
+
 
 app = FastAPI(title="PDF TTS")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in prod
+    allow_origins=["*"],  # TODO: tighten in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Ensure audio and static directories exist
 os.makedirs(AUDIO_DIR, exist_ok=True)
+os.makedirs("/static", exist_ok=True)
+
+
+
+pdf_service = PDFService(static_dir="/static", rag_service_url=RAG_SERVICE_URL)
 
 @app.post(f"{API_PREFIX}/upload")
-async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...), embedding_model: str = Form(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Please upload a PDF file.")
+async def upload_pdf(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    embedding_model: str = Form(...)
+):
+    """
+    Upload a PDF file, extract sentences and bounding boxes, and trigger RAG indexing.
     
-    if not embedding_model:
-        raise HTTPException(status_code=400, detail="Please provide an embedding_model.")
-    
-    # Generate unique ID for this upload
-    upload_id = str(uuid.uuid4())
-    pdf_filename = f"{upload_id}.pdf"
-    pdf_path = os.path.join("/static", pdf_filename)
-    os.makedirs("/static", exist_ok=True)
-    
-    content = await file.read()
-    
-    # Calculate file hash
-    file_hash = hashlib.md5(content).hexdigest()
-    
-    with open(pdf_path, "wb") as f:
-        f.write(content)
-        
-    text, char_map = extract_text_with_coordinates(content)
-    
-    sentences = split_into_sentences(text)
-    
-    # Map sentences to bounding boxes by finding each sentence in the extracted text
-    current_idx = 0
-    enriched_sentences = []
-    
-    for s in sentences:
-        s_text = s["text"]
-        
-        # 1. Create a "clean" version of the sentence for matching (no whitespace)
-        s_text_clean = "".join(s_text.split())
-        
-        if not s_text_clean:
-            s["bboxes"] = []
-            enriched_sentences.append(s)
-            continue
-            
-        # 2. Scan 'text' starting from current_idx to find the sequence of chars in s_text_clean
-        match_start = -1
-        match_end = -1
-        s_ptr = 0
-        
-        temp_idx = current_idx
-        
-        # Search for the sentence in the text
-        while temp_idx < len(text) and s_ptr < len(s_text_clean):
-            char = text[temp_idx]
-            
-            # Skip whitespace in the source text
-            if char.isspace():
-                temp_idx += 1
-                continue
-                
-            # Check for match
-            if char == s_text_clean[s_ptr]:
-                if match_start == -1:
-                    match_start = temp_idx
-                s_ptr += 1
-                temp_idx += 1
-            else:
-                # Mismatch
-                if match_start != -1:
-                    # We were matching but failed. Reset and try again from next char.
-                    # This handles cases where the same word appears multiple times.
-                    temp_idx = match_start + 1
-                    match_start = -1
-                    s_ptr = 0
-                else:
-                    # Haven't found start yet, keep looking
-                    temp_idx += 1
-        
-        # Check if we found the full sentence
-        if match_start != -1 and s_ptr == len(s_text_clean):
-            match_end = temp_idx
-            # Extract bboxes for the matched range
-            bboxes = char_map[match_start:match_end]
-            s["bboxes"] = bboxes
-            current_idx = match_end
-        else:
-            # If strict match fails, we skip this sentence (or could log a warning)
-            # We no longer fallback to simple find() as it's unreliable with layout changes
-            s["bboxes"] = []
-            
-        enriched_sentences.append(s)
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background task manager.
+        file (UploadFile): PDF file to upload.
+        embedding_model (str): Name of the embedding model to use.
+    Returns:
+        dict: Result of the upload and processing.
+    """
+    return await pdf_service.process_upload(file, embedding_model, background_tasks)
 
-    # Trigger RAG Indexing
-    rag_url = os.getenv("RAG_SERVICE_URL", "http://rag-service:8000")
-    
-    async def call_rag(txt: str, metadata: dict, emb_model: str):
-        async with httpx.AsyncClient() as client:
-            try:
-                await client.post(
-                    f"{rag_url}/index", 
-                    json={
-                        "text": txt,
-                        "embedding_model": emb_model,
-                        "metadata": metadata
-                    },
-                    timeout=300.0  # 5 minutes - indexing with embeddings can take time
-                )
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                print(f"RAG Indexing failed: {repr(e)}", flush=True)
-
-    background_tasks.add_task(call_rag, text, {"filename": file.filename, "upload_id": upload_id, "file_hash": file_hash}, embedding_model)
-
-    return {"sentences": enriched_sentences, "pdfUrl": f"/{pdf_filename}", "fileHash": file_hash}
 
 @app.get(f"{API_PREFIX}/voices")
 async def get_voices():
+    """
+    List available TTS voices/styles.
+    
+    Returns:
+        dict: Available voices/styles for TTS.
+    """
     voices = list_voice_styles()
     return {"voices": voices}
 
+
 @app.post(f"{API_PREFIX}/tts")
 async def synthesize_sentence(payload: dict):
-    text = payload.get("text")
-    voice = payload.get("voice") # No default here, let tts_sentence_to_wav handle it
-    speed = payload.get("speed", 1.0)
+    """
+    Synthesize audio for a sentence using TTS.
     
+    Args:
+        payload (dict): Should contain 'text', 'voice', and optional 'speed'.
+    Returns:
+        dict: URL to the generated audio file.
+    Raises:
+        HTTPException: If 'text' is missing in the payload.
+    """
+    text = payload.get("text")
+    voice = payload.get("voice")
+    speed = payload.get("speed", 1.0)
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'text' in payload.")
-        
     path = tts_sentence_to_wav(text, AUDIO_DIR, voice_style=voice, speed=speed)
     rel = os.path.relpath(path, "/")
     url = f"/{rel}"
     return {"audioUrl": url}
 
+
 @app.get(f"{API_PREFIX}/rag_status")
 async def check_rag_status(collection_name: str):
-    rag_url = os.getenv("RAG_SERVICE_URL", "http://rag-service:8000")
+    """
+    Check the status of RAG indexing for a collection.
+    
+    Args:
+        collection_name (str): Name of the collection to check status for.
+    Returns:
+        dict: Status information from the RAG service.
+    """
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.get(f"{rag_url}/status", params={"collection_name": collection_name})
+            resp = await client.get(f"{RAG_SERVICE_URL}/status", params={"collection_name": collection_name})
             return resp.json()
         except Exception as e:
-            # If rag service is down or other error
             return {"status": "error", "message": str(e)}
+
 
 # Serve audio files
 app.mount("/data", StaticFiles(directory="/data"), name="data")
 
 # Mount static files last to avoid shadowing API routes
-# Mount static files last to avoid shadowing API routes
-os.makedirs("/static", exist_ok=True)
 app.mount("/", StaticFiles(directory="/static", html=True), name="static")
