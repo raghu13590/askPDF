@@ -106,16 +106,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         fetch(`${ragApiUrl}/models`)
             .then(res => res.json())
             .then(data => {
-                if (data.data) {
+                if (data.data && data.data.length > 0) {
                     // Helper to extract ID
                     const ids = data.data.map((m: any) => m.id);
                     setAvailableModels(ids);
+                } else {
+                    throw new Error("No models found from API");
                 }
             })
             .catch(err => {
-                console.warn("Failed to fetch models", err);
-                // Fallback
-                setAvailableModels(['ai/qwen3:latest', 'ai/nomic-embed-text-v1.5:latest']);
+                console.error("Failed to fetch models or no models found", err);
+                setAvailableModels([]);
+                // Optionally, you could set an error state here to display in the UI
             });
     }, [ragApiUrl]);
 
@@ -246,10 +248,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                 <Box sx={{ flexGrow: 1, maxWidth: '250px' }}>
                     <FormControl fullWidth size="small">
-                        <InputLabel>LLM</InputLabel>
+                        <InputLabel id="llm-label">Select LLM</InputLabel>
                         <Select
+                            labelId="llm-label"
+                            id="llm-select"
                             value={llmModel}
-                            label="LLM"
+                            label="Select LLM"
                             onChange={(e) => setLlmModel(e.target.value)}
                         >
                             {availableModels.map(m => (
