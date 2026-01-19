@@ -75,9 +75,10 @@ async def get_chunks(text: str, file_hash: Optional[str], upload_id: Optional[st
 async def generate_embeddings(chunks: List[str], embedding_model_name: str) -> List[List[float]]:
     """
     Generate embeddings for each chunk using the specified embedding model.
+    Note: Some LLM APIs/servers (like DMR) may have strict batch size limits.
     """
     embed_model = get_embedding_model(embedding_model_name)
-    batch_size = 1  # DMR's strict batch size limits
+    batch_size = 1  # LLM API/server strict batch size limits
     vectors = []
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]

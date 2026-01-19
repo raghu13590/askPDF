@@ -8,7 +8,7 @@ Endpoints:
 - POST /index: Index a document for retrieval.
 - POST /chat: Chat with RAG using LLM and embedding models.
 - GET /status: Check if a collection exists in the vector DB.
-- GET /models: List available LLM and embedding models from DMR.
+- GET /models: List available LLM and embedding models from the LLM API/server.
 - GET /health/model: Check if a specific model is ready.
 - GET /health: Service health check.
 
@@ -134,29 +134,29 @@ async def status_endpoint(collection_name: str):
 @app.get("/models")
 async def get_models():
     """
-    Fetch available LLM and embedding models from DMR (Distributed Model Router).
+    Fetch available LLM and embedding models from the LLM API/server (OpenAI-compatible).
     Returns:
-        List of model IDs or fallback defaults if DMR is unavailable.
+        List of model IDs or fallback defaults if the LLM API/server is unavailable.
     """
-    """Fetch available models from DMR"""
-    dmr_url = os.getenv("DMR_BASE_URL")
+    # Fetch available models from LLM API/server
+    llm_api_url = os.getenv("LLM_API_URL")
     try:
-        if not dmr_url.endswith("/v1"):
-            dmr_url = f"{dmr_url}/v1"
+        if not llm_api_url.endswith("/v1"):
+            llm_api_url = f"{llm_api_url}/v1"
 
         async with httpx.AsyncClient() as client:
             # Assuming standard OpenAI endpoint /v1/models
-            resp = await client.get(f"{dmr_url}/models")
+            resp = await client.get(f"{llm_api_url}/models")
             if resp.status_code == 200:
                 data = resp.json()
-                print(f"DMR Models Found: {data}", flush=True)
+                print(f"LLM API/server Models Found: {data}", flush=True)
                 return data
             else:
-                error_msg = f"DMR Fetch Failed {resp.status_code}: {resp.text}"
+                error_msg = f"LLM API/server Fetch Failed {resp.status_code}: {resp.text}"
                 print(error_msg, flush=True)
                 raise HTTPException(status_code=500, detail=error_msg)
     except Exception as e:
-        error_msg = f"Error fetching models from DMR: {str(e)}"
+        error_msg = f"Error fetching models from LLM API/server: {str(e)}"
         print(error_msg, flush=True)
         raise HTTPException(status_code=500, detail=error_msg)
 

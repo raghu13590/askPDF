@@ -1,5 +1,5 @@
 """
-Model utilities for DMR/OpenAI-compatible APIs.
+Model utilities for LLM API/OpenAI-compatible APIs.
 """
 
 import os
@@ -9,8 +9,8 @@ import httpx
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 def _get_base_url() -> str:
-    """Get the DMR base URL, ensuring it ends with /v1."""
-    base_url = os.getenv("DMR_BASE_URL")
+    """Get the LLM API base URL, ensuring it ends with /v1."""
+    base_url = os.getenv("LLM_API_URL")
     return base_url if base_url.endswith("/v1") else f"{base_url}/v1"
 
 def get_llm(model_name: str, temperature: float = 0.0):
@@ -37,7 +37,7 @@ def get_embedding_model(model_name: str):
 
 async def is_model_ready(model_name: str) -> bool:
     """
-    Check if the model is ready in DMR by probing the API.
+    Check if the model is ready in the LLM API/server by probing the API.
     Returns True if ready, False if not ready or not found.
     """
     base_url = _get_base_url()

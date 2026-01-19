@@ -81,13 +81,13 @@ cd askpdf
 At the root of the project directory (the same folder as `docker-compose.yml`), create a file named `.env` with the following content:
 
 ```env
-DMR_BASE_URL=http://host.docker.internal:12434
+LLM_API_URL=http://host.docker.internal:12434
 ```
 
 This variable configures the LLM server endpoint. If you are using Ollama on its default port, set:
 
 ```env
-DMR_BASE_URL=http://host.docker.internal:11434
+LLM_API_URL=http://host.docker.internal:11434
 ```
 
 > **Note:** After editing `.env`, restart your containers for changes to take effect.
@@ -100,9 +100,9 @@ The application requires an OpenAI-compatible API for LLM and embeddings. You ca
 #### Option A: Docker Model Runner (DMR) (Recommended)
 
 1. Ensure Docker Desktop is running and the DMR extension is installed.
-2. Set `DMR_BASE_URL` in your `.env` file to:
+2. Set `LLM_API_URL` in your `.env` file to:
    ```env
-   DMR_BASE_URL=http://host.docker.internal:12434
+  LLM_API_URL=http://host.docker.internal:12434
    ```
 3. Download the required models:
    - LLM Model (e.g., `ai/qwen3:latest`): [Qwen3 on Hugging Face](https://huggingface.co/Qwen/Qwen1.5-7B-Chat)
@@ -119,13 +119,14 @@ The application requires an OpenAI-compatible API for LLM and embeddings. You ca
 #### Option B: Ollama
 
 Ollama runs on port `11434` by default. The easiest way to use Ollama with this app is to update your `.env` file (recommended):
+> **Note:** Ollama supports the OpenAI-compatible API (used by this app) starting from version **0.1.34** and above. Ensure your Ollama installation is up to date.
 
 **Option 1 (Recommended): Change the API endpoint in your `.env` file**
 
 Edit your `.env` file at the project root and set:
 
 ```env
-DMR_BASE_URL=http://host.docker.internal:11434
+LLM_API_URL=http://host.docker.internal:11434
 ```
 
 This will direct the app to use Ollama's default port. (If running outside Docker, you can use `http://localhost:11434`.)
@@ -242,7 +243,7 @@ askpdf/
             ├── api.ts          # Backend API client
             └── tts-api.ts      # TTS API client
 ```
-The application expects an OpenAI-compatible API at the URL specified by `DMR_BASE_URL` in your `.env` file (default: `http://host.docker.internal:12434`).
+The application expects an OpenAI-compatible API at the URL specified by `LLM_API_URL` in your `.env` file (default: `http://host.docker.internal:12434`).
 ## 📝 API Reference
 
 ### Backend Service (Port 8000)
@@ -253,7 +254,7 @@ Upload a PDF and extract sentences with bounding boxes.
 **Request:** `multipart/form-data`
 - `file`: PDF file
 
-All environment variables, including `DMR_BASE_URL`, are now managed via a `.env` file at the project root. This file is loaded by both Docker Compose and the Python services.
+All environment variables, including `LLM_API_URL`, are now managed via a `.env` file at the project root. This file is loaded by both Docker Compose and the Python services.
 - `embedding_model`: Model name for RAG indexing
 
 **Response:**
@@ -262,7 +263,7 @@ All environment variables, including `DMR_BASE_URL`, are now managed via a `.env
   "sentences": [
     {
       "id": 0,
-| `DMR_BASE_URL` | RAG Service | `http://host.docker.internal:12434` | LLM server URL (set in `.env`; change to `...:11434` for default Ollama) |
+| `LLM_API_URL` | RAG Service | `http://host.docker.internal:12434` | LLM server URL (set in `.env`; change to `...:11434` for default Ollama) |
       "bboxes": [
         {"page": 1, "x": 72, "y": 700, "width": 50, "height": 12, "page_height": 792, "page_width": 612}
       ]
@@ -356,7 +357,7 @@ Health check endpoint.
 | `RAG_SERVICE_URL` | Backend | `http://rag-service:8000` | Internal RAG service URL |
 | `QDRANT_HOST` | RAG Service | `qdrant` | Qdrant hostname |
 | `QDRANT_PORT` | RAG Service | `6333` | Qdrant port |
-| `DMR_BASE_URL` | RAG Service | `http://host.docker.internal:12434` | LLM server URL (Change to `...:11434` for default Ollama) |
+| `LLM_API_URL` | RAG Service | `http://host.docker.internal:12434` | LLM server URL (Change to `...:11434` for default Ollama) |
 
 ### Voice Styles
 
