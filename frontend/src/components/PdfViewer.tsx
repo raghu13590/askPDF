@@ -34,40 +34,35 @@ type Props = {
 
 const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, onJump, autoScroll, isResizing }: Props) {
     const [numPages, setNumPages] = useState<number | null>(null);
-    const [pageWidth, setPageWidth] = useState<number>(600); // Default width
+    const [pageWidth, setPageWidth] = useState<number>(600); // Actual width for PDF rendering
+    const [scale, setScale] = useState<number>(1); // CSS scale for instant feedback
     const containerRef = useRef<HTMLDivElement>(null);
+    const pdfContentRef = useRef<HTMLDivElement>(null); // For scaling
     const sentenceRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
         setNumPages(numPages);
     }
 
-    // Handle resizing to fit container with ResizeObserver and debouncing
+    // Only update pageWidth when resizing ends, use CSS scale for visual feedback during resize
     useEffect(() => {
         if (!containerRef.current) return;
 
-        let timeoutId: number;
-        const updateWidth = () => {
+        if (!isResizing) {
+            // On resize end, update pageWidth to match container
+            const width = containerRef.current.offsetWidth - 40;
+            setPageWidth(width);
+            setScale(1);
+        } else {
+            // During resize, use CSS scale for visual feedback
             if (containerRef.current) {
-                // Use offsetWidth for actual available space
-                setPageWidth(containerRef.current.offsetWidth - 40);
+                const width = containerRef.current.offsetWidth - 40;
+                if (pageWidth > 0) {
+                    setScale(width / pageWidth);
+                }
             }
-        };
-
-        const observer = new ResizeObserver(() => {
-            // During active resize, we rely on CSS scaling. 
-            // We only trigger high-quality re-render when not resizing or after a delay.
-            clearTimeout(timeoutId);
-            timeoutId = window.setTimeout(updateWidth, isResizing ? 300 : 50);
-        });
-
-        observer.observe(containerRef.current);
-        updateWidth();
-
-        return () => {
-            observer.disconnect();
-            clearTimeout(timeoutId);
-        };
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isResizing]);
 
     // Pre-calculate sentences by page for performance
@@ -146,57 +141,76 @@ const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, 
             ref={containerRef}
             sx={{
                 height: '100%',
+                width: '100%',
                 overflow: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
+                alignItems: 'stretch',
                 bgcolor: 'transparent',
-                p: 1
+                p: 0,
+                m: 0,
             }}
         >
-            <Document
-                file={pdfUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                loading={<Typography>Loading PDF...</Typography>}
-                error={<Typography color="error">Failed to load PDF.</Typography>}
+            <div
+                ref={pdfContentRef}
+                style={{
+                    transform: scale !== 1 ? `scale(${scale})` : undefined,
+                    transformOrigin: 'top left',
+                    transition: isResizing ? 'none' : 'transform 0.15s',
+                    width: '100%',
+                    margin: 0,
+                    padding: 0,
+                }}
             >
-                {Array.from(new Array(numPages), (el, index) => (
-                    <Box
-                        key={`page_${index + 1}`}
-                        sx={{
-                            position: 'relative',
-                            mb: 1,
-                            width: 'fit-content',
-                            maxWidth: '100%',
-                            // CSS Scaling Hack: Force canvas to scale with container during drag
-                            '& canvas': {
-                                width: '100% !important',
-                                height: 'auto !important',
-                            }
-                        }}
-                    >
-                        <Page
-                            pageNumber={index + 1}
-                            width={pageWidth}
-                            renderAnnotationLayer={true}
-                            renderTextLayer={true}
-                        />
-                        {/* Overlay Layer */}
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
+                <Document
+                    file={pdfUrl}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    loading={<Typography>Loading PDF...</Typography>}
+                    error={<Typography color="error">Failed to load PDF.</Typography>}
+                >
+                    {Array.from(new Array(numPages), (el, index) => (
+                        <Box
+                            key={`page_${index + 1}`}
+                            sx={{
+                                position: 'relative',
+                                mb: 0,
                                 width: '100%',
-                                height: '100%',
-                                zIndex: 10
+                                maxWidth: '100%',
+                                '& canvas': {
+                                    width: '100% !important',
+                                    height: 'auto !important',
+                                    display: 'block',
+                                },
+                                p: 0,
+                                m: 0,
+                                boxShadow: 'none',
+                                border: 'none',
+                                background: 'none',
                             }}
                         >
-                            {getPageOverlays(index + 1)}
-                        </div>
-                    </Box>
-                ))}
-            </Document>
+                            <Page
+                                pageNumber={index + 1}
+                                width={pageWidth}
+                                renderAnnotationLayer={true}
+                                renderTextLayer={true}
+                            />
+                            {/* Overlay Layer */}
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    zIndex: 10
+                                }}
+                            >
+                                {getPageOverlays(index + 1)}
+                            </div>
+                        </Box>
+                    ))}
+                </Document>
+            </div>
         </Box>
     );
 });
