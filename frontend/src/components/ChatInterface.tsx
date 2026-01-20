@@ -235,17 +235,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     };
 
     return (
-        <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 1, bgcolor: 'transparent' }}>
+        <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 1, bgcolor: 'transparent', cursor: 'default' }}>
             <Box sx={{ mb: 1, pt: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    Chat with PDF
-                    {indexingStatus === 'indexing' && (
-                        <Typography component="span" variant="caption" sx={{ ml: 1, color: 'warning.main' }}>
-                            (Indexing...)
-                        </Typography>
-                    )}
+                    ask PDF
                 </Typography>
-
                 <Box sx={{ flexGrow: 1, maxWidth: '250px' }}>
                     <FormControl fullWidth size="small">
                         <InputLabel id="llm-label">Select LLM</InputLabel>
@@ -283,7 +277,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 borderColor: 'transparent',
                                 borderRadius: '12px',
                                 transition: 'all 0.2s ease',
-                                cursor: 'pointer'
+                                cursor: 'default'
                             }}
                             onDoubleClick={(e) => {
                                 const firstSentence = chatSentences.find(s => s.messageIndex === idx);
@@ -292,6 +286,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             }}
                         >
                             <Typography variant="body2" component="div" sx={{
+                                cursor: 'text',
                                 '& p': { m: 0, mb: 1 },
                                 '& p:last-child': { mb: 0 },
                                 '& ul, & ol': { pl: 2, m: 0, mb: 1 },
@@ -324,7 +319,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         variant="outlined"
                         multiline
                         maxRows={10}
-                        placeholder={!llmModel || !embedModel ? "Select LLM model first..." : "Ask a question..." + (input ? "\n(Shift+Enter for new line)" : "")}
+                        placeholder={
+                            indexingStatus === 'indexing'
+                                ? "Indexing your document. This may take a moment..."
+                                : (!llmModel || !embedModel)
+                                    ? "Select LLM model..."
+                                    : "Ask a question..." + (input ? "\n(Shift+Enter for new line)" : "")
+                        }
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => {

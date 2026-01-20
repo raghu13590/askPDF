@@ -118,55 +118,56 @@ export default function Home() {
           {/* Top Controls: All in one bar, including PlayerControls */}
           <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="center" flexWrap="wrap" useFlexGap>
-              {/* Controls except PlayerControls */}
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Typography variant="h6" noWrap sx={{ fontWeight: 'bold' }}>
-                  AskPDF
-                </Typography>
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Embedding Model</InputLabel>
-                  <Select
-                    value={embedModel}
-                    label="Embedding Model"
-                    onChange={(e) => setEmbedModel(e.target.value)}
-                  >
-                    {availableModels.map(m => (
-                      <MenuItem key={m} value={m}>{m}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <PdfUploader
-                  embedModel={embedModel}
-                  onUploaded={(data) => {
-                    setPdfSentences(data?.sentences || []);
-                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-                    if (data?.pdfUrl) {
-                      setPdfUrl(`${apiBase}${data.pdfUrl}?t=${Date.now()}`);
-                    }
-                    setFileHash(data?.fileHash || null);
-                    setCurrentPdfId(null);
-                    setCurrentChatId(null);
-                    setPlayRequestId(null);
-                    setActiveSource('pdf');
-                  }}
-                />
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => setAutoScroll(!autoScroll)}
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel id="embed-model-label">Embedding Model</InputLabel>
+                <Select
+                  labelId="embed-model-label"
+                  value={embedModel}
+                  label="Embedding Model"
+                  displayEmpty
+                  onChange={(e) => setEmbedModel(e.target.value)}
+                  renderValue={(selected) => selected ? selected : <span style={{ color: '#888' }}>Embedding Model</span>}
                 >
-                  {autoScroll ? "Disable Auto‑Scroll" : "Enable Auto‑Scroll"}
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  disabled={!canDisplayChat}
-                  onClick={() => setIsChatOpen(open => !open)}
-                >
-                  {isChatOpen ? "Close Chat" : "Open Chat"}
-                </Button>
-              </Stack>
-              {/* PlayerControls always in same line, wraps with others */}
+                  <MenuItem value="" disabled>
+                    <span style={{ color: '#888' }}>Embedding Model</span>
+                  </MenuItem>
+                  {availableModels.map(m => (
+                    <MenuItem key={m} value={m}>{m}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <PdfUploader
+                embedModel={embedModel}
+                onUploaded={(data) => {
+                  setPdfSentences(data?.sentences || []);
+                  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                  if (data?.pdfUrl) {
+                    setPdfUrl(`${apiBase}${data.pdfUrl}?t=${Date.now()}`);
+                  }
+                  setFileHash(data?.fileHash || null);
+                  setCurrentPdfId(null);
+                  setCurrentChatId(null);
+                  setPlayRequestId(null);
+                  setActiveSource('pdf');
+                }}
+              />
+              <Button
+                variant={autoScroll ? "contained" : "outlined"}
+                color={autoScroll ? "primary" : "inherit"}
+                size="small"
+                onClick={() => setAutoScroll(!autoScroll)}
+                sx={{ fontWeight: 600 }}
+              >
+                AUTO-SCROLL
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={!canDisplayChat}
+                onClick={() => setIsChatOpen(open => !open)}
+              >
+                {isChatOpen ? "Close Chat" : "Open Chat"}
+              </Button>
               {pdfSentences.length > 0 && pdfUrl && (
                 <PlayerControls
                   sentences={activeSource === 'pdf' ? pdfSentences : chatSentences}
@@ -200,8 +201,26 @@ export default function Home() {
                 isResizing={isResizing}
               />
             ) : (
-              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.50' }}>
-                <Typography color="textSecondary">Upload a PDF to begin reading</Typography>
+              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.50', p: 4 }}>
+                <Box>
+                  <Typography variant="h5" color="textSecondary" gutterBottom>
+                    Welcome to AskPDF
+                  </Typography>
+                  <Typography color="textSecondary" sx={{ mb: 2 }}>
+                    To get started:
+                  </Typography>
+                  <ul style={{ color: '#888', margin: 0, paddingLeft: 20, fontSize: 16 }}>
+                    <li>Choose an <b>Embedding Model</b> from the dropdown above (required for semantic search and chat).</li>
+                    <li>Click <b>Upload PDF</b> and select your document.</li>
+                    <li>Wait a moment while your PDF is processed and its content is displayed here.</li>
+                    <li>Double-click any text in the PDF or any chat bubble to play audio from that point.</li>
+                    <li>Use the <b>Chat</b> panel to ask questions about your PDF using AI.</li>
+                    <li>In the chat window, pick a <b>Chat Model</b> from the dropdown before starting your conversation.</li>
+                  </ul>
+                  <Typography color="textSecondary" sx={{ mt: 2, fontSize: 14 }}>
+                    <b>Tip:</b> You can also use the playback controls at the top to play, pause, or skip sentences.
+                  </Typography>
+                </Box>
               </Box>
             )}
           </Box>
