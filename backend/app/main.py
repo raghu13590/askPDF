@@ -14,9 +14,6 @@ Features:
 
 Environment Variables:
 - RAG_SERVICE_URL: URL for the RAG service (default: http://rag-service:8000)
-
-Author: [Your Name]
-Date: [Update as needed]
 """
 import os
 import uuid
