@@ -19,13 +19,20 @@ type Props = {
 };
 
 export default function PlayerControls({ sentences, currentId, onCurrentChange, playRequestId }: Props) {
+  // Ref to the audio element for playback control
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
+  // Available TTS voices
   const [voices, setVoices] = useState<string[]>([]);
+  // Currently selected TTS voice
   const [selectedVoice, setSelectedVoice] = useState<string>("");
+  // Playback speed
   const [speed, setSpeed] = useState<number>(1.0);
-  const [pausedAt, setPausedAt] = useState<number | null>(null); // track paused position
+  // Track paused position for resume
+  const [pausedAt, setPausedAt] = useState<number | null>(null);
 
+  // Fetch available TTS voices on mount
   useEffect(() => {
     async function fetchVoices() {
       try {
@@ -41,23 +48,23 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     fetchVoices();
   }, []);
 
-  // React to external play requests (double‑click)
+  // Play a sentence when an external play request is received (e.g., double-click in PDF)
   useEffect(() => {
     if (playRequestId == null) return;
     void playSentence(playRequestId);
   }, [playRequestId]);
 
-  // Trigger playback update when voice changes
+  // Restart playback with new voice if changed during playback
   useEffect(() => {
-    if (isPlaying && currentId !== null && selectedVoice !== "") { // Only re-play if a voice is actually selected
+    if (isPlaying && currentId !== null && selectedVoice !== "") {
       void playSentence(currentId);
     }
   }, [selectedVoice]);
 
-  // Stop playback when sentences changes (new PDF uploaded or active source switched)
+  // Stop playback and reset state when sentences change (e.g., new PDF uploaded)
   useEffect(() => {
     // If we're jumping to a new source, the playRequestId effect will handle it.
-    // We only want to auto-stop if this is a passive change (like uploading a new PDF).
+    // Only auto-stop for passive changes
     if (playRequestId !== null) return;
 
     if (audioRef.current) {
@@ -69,10 +76,10 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     setPausedAt(null);
   }, [sentences]);
 
-  // (Removed duplicate playSentence and handlePlayPause)
-
-  // --- All logic is now inside the function ---
-
+  /**
+   * Play the sentence at the given index. If resumeFrom is provided, resumes from that time.
+   * Handles TTS audio fetching and playback, and auto-advances to next sentence on end.
+   */
   async function playSentence(id: number, resumeFrom?: number) {
     if (selectedVoice === "") {
       console.warn("No voice selected, skipping playback.");
@@ -81,7 +88,7 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Interrupt current playback and clear old handler
+    // Stop any current playback
     audio.pause();
     audio.currentTime = 0;
     audio.onended = null;
@@ -100,7 +107,7 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
       setIsPlaying(true);
       setPausedAt(null);
 
-      // Attach ended handler for this playback
+      // Auto-advance to next sentence on playback end
       audio.onended = () => {
         const next = id + 1;
         if (next < sentences.length) {
@@ -116,20 +123,21 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     }
   }
 
+  /**
+   * Toggle play/pause for the current sentence.
+   * If paused, resumes from last position; otherwise, starts from current or first sentence.
+   */
   function handlePlayPause() {
     const audio = audioRef.current;
     if (!isPlaying) {
-      // If paused, resume from where left off
       if (pausedAt !== null && currentId !== null) {
         audio!.play();
         setIsPlaying(true);
         setPausedAt(null);
       } else {
-        // Start from current or first
         void playSentence(currentId ?? 0);
       }
     } else {
-      // Pause
       if (audio) {
         audio.pause();
         setPausedAt(audio.currentTime);

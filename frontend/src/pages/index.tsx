@@ -110,60 +110,78 @@ export default function Home() {
 
   return (
     <>
+
       <CssBaseline />
       <Box sx={{ height: "100vh", display: "flex", flexDirection: "row", overflow: "hidden", bgcolor: 'background.default' }}>
         {/* Left Column: PDF Content & Controls */}
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: 1, borderColor: 'divider' }}>
+          {/* Top Controls: All in one bar, including PlayerControls */}
           <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Typography variant="h6" noWrap sx={{ fontWeight: 'bold' }}>
-                AskPDF
-              </Typography>
-
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Embedding Model</InputLabel>
-                <Select
-                  value={embedModel}
-                  label="Embedding Model"
-                  onChange={(e) => setEmbedModel(e.target.value)}
+            <Stack direction="row" spacing={2} alignItems="center" justifyContent="center" flexWrap="wrap" useFlexGap>
+              {/* Controls except PlayerControls */}
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography variant="h6" noWrap sx={{ fontWeight: 'bold' }}>
+                  AskPDF
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>Embedding Model</InputLabel>
+                  <Select
+                    value={embedModel}
+                    label="Embedding Model"
+                    onChange={(e) => setEmbedModel(e.target.value)}
+                  >
+                    {availableModels.map(m => (
+                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <PdfUploader
+                  embedModel={embedModel}
+                  onUploaded={(data) => {
+                    setPdfSentences(data?.sentences || []);
+                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                    if (data?.pdfUrl) {
+                      setPdfUrl(`${apiBase}${data.pdfUrl}?t=${Date.now()}`);
+                    }
+                    setFileHash(data?.fileHash || null);
+                    setCurrentPdfId(null);
+                    setCurrentChatId(null);
+                    setPlayRequestId(null);
+                    setActiveSource('pdf');
+                  }}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setAutoScroll(!autoScroll)}
                 >
-                  {availableModels.map(m => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <PdfUploader
-                embedModel={embedModel}
-                onUploaded={(data) => {
-                  setPdfSentences(data?.sentences || []);
-                  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-                  if (data?.pdfUrl) {
-                    setPdfUrl(`${apiBase}${data.pdfUrl}?t=${Date.now()}`);
-                  }
-                  setFileHash(data?.fileHash || null);
-                  setCurrentPdfId(null);
-                  setCurrentChatId(null);
-                  setPlayRequestId(null);
-                  setActiveSource('pdf');
-                }}
-              />
-
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setAutoScroll(!autoScroll)}
-              >
-                {autoScroll ? "Disable Auto‑Scroll" : "Enable Auto‑Scroll"}
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                disabled={!canDisplayChat}
-                onClick={() => setIsChatOpen(open => !open)}
-              >
-                {isChatOpen ? "Close Chat" : "Open Chat"}
-              </Button>
+                  {autoScroll ? "Disable Auto‑Scroll" : "Enable Auto‑Scroll"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={!canDisplayChat}
+                  onClick={() => setIsChatOpen(open => !open)}
+                >
+                  {isChatOpen ? "Close Chat" : "Open Chat"}
+                </Button>
+              </Stack>
+              {/* PlayerControls always in same line, wraps with others */}
+              {pdfSentences.length > 0 && pdfUrl && (
+                <PlayerControls
+                  sentences={activeSource === 'pdf' ? pdfSentences : chatSentences}
+                  currentId={activeSource === 'pdf' ? currentPdfId : currentChatId}
+                  onCurrentChange={(id) => {
+                    if (activeSource === 'pdf') {
+                      setCurrentPdfId(id);
+                    } else {
+                      setCurrentChatId(id);
+                    }
+                    setPlayRequestId(null);
+                  }}
+                  playRequestId={playRequestId}
+                />
+              )}
             </Stack>
           </Box>
 
@@ -187,24 +205,6 @@ export default function Home() {
               </Box>
             )}
           </Box>
-
-          {pdfSentences.length > 0 && pdfUrl && (
-            <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-              <PlayerControls
-                sentences={activeSource === 'pdf' ? pdfSentences : chatSentences}
-                currentId={activeSource === 'pdf' ? currentPdfId : currentChatId}
-                onCurrentChange={(id) => {
-                  if (activeSource === 'pdf') {
-                    setCurrentPdfId(id);
-                  } else {
-                    setCurrentChatId(id);
-                  }
-                  setPlayRequestId(null);
-                }}
-                playRequestId={playRequestId}
-              />
-            </Box>
-          )}
         </Box>
 
         {/* Resizable Divider */}
