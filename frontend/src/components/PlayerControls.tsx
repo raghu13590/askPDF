@@ -1,8 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Stack, Select, MenuItem, Slider, Typography, FormControl, InputLabel } from "@mui/material";
+import { Button, Stack, Select, MenuItem, Slider, Typography, FormControl, InputLabel, IconButton } from "@mui/material";
+import { PlayArrow, Pause, SkipPrevious, SkipNext } from '@mui/icons-material';
+
+// For Next.js/browser env
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 import { ttsSentence, getVoices } from "../lib/tts-api";
 
 type Sentence = { id: number; text: string };
+
 
 type Props = {
   sentences: Sentence[];
@@ -17,6 +24,7 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
   const [voices, setVoices] = useState<string[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>("");
   const [speed, setSpeed] = useState<number>(1.0);
+  const [pausedAt, setPausedAt] = useState<number | null>(null); // track paused position
 
   useEffect(() => {
     async function fetchVoices() {
@@ -58,9 +66,14 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
       audioRef.current.onended = null;
     }
     setIsPlaying(false);
+    setPausedAt(null);
   }, [sentences]);
 
-  async function playSentence(id: number) {
+  // (Removed duplicate playSentence and handlePlayPause)
+
+  // --- All logic is now inside the function ---
+
+  async function playSentence(id: number, resumeFrom?: number) {
     if (selectedVoice === "") {
       console.warn("No voice selected, skipping playback.");
       return;
@@ -78,17 +91,14 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
 
     try {
       const { audioUrl } = await ttsSentence(s.text, selectedVoice, speed);
-
-      // Check if we are still supposed to be playing this sentence (race condition check)
-      // Note: A more robust way would be to use a request ID or cancellation token, 
-      // but checking currentId matches is a reasonable proxy if onCurrentChange updates it synchronously.
-      // However, since we might have moved on, let's just proceed. 
-      // Ideally, we should check if the component is still mounted or if another request started.
-
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       audio.src = `${apiBase}${audioUrl}`;
       await audio.play();
+      if (resumeFrom) {
+        audio.currentTime = resumeFrom;
+      }
       setIsPlaying(true);
+      setPausedAt(null);
 
       // Attach ended handler for this playback
       audio.onended = () => {
@@ -106,39 +116,40 @@ export default function PlayerControls({ sentences, currentId, onCurrentChange, 
     }
   }
 
-  function pause() {
-    audioRef.current?.pause();
-    setIsPlaying(false);
-  }
-
-  function resume() {
-    audioRef.current?.play();
-    setIsPlaying(true);
-  }
-
-  function stop() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.onended = null;
+  function handlePlayPause() {
+    const audio = audioRef.current;
+    if (!isPlaying) {
+      // If paused, resume from where left off
+      if (pausedAt !== null && currentId !== null) {
+        audio!.play();
+        setIsPlaying(true);
+        setPausedAt(null);
+      } else {
+        // Start from current or first
+        void playSentence(currentId ?? 0);
+      }
+    } else {
+      // Pause
+      if (audio) {
+        audio.pause();
+        setPausedAt(audio.currentTime);
+        setIsPlaying(false);
+      }
     }
-    setIsPlaying(false);
-    onCurrentChange(null);
   }
 
   return (
     <Stack direction="row" spacing={2} alignItems="center" useFlexGap sx={{ flexWrap: "wrap" }}>
       <Stack direction="row" spacing={1} alignItems="center" useFlexGap sx={{ flexWrap: "wrap" }}>
-        <Button variant="contained" onClick={() => playSentence(currentId ?? 0)}>Play</Button>
-        <Button variant="outlined" onClick={pause} disabled={!isPlaying}>Pause</Button>
-        <Button variant="outlined" onClick={resume} disabled={isPlaying}>Resume</Button>
-        <Button variant="text" onClick={stop}>Stop</Button>
-        <Button variant="outlined" onClick={() => currentId !== null && currentId > 0 && playSentence(currentId - 1)}>
-          ⏮️ Prev
-        </Button>
-        <Button variant="outlined" onClick={() => currentId !== null && currentId < sentences.length - 1 && playSentence(currentId + 1)}>
-          ⏭️ Next
-        </Button>
+        <IconButton color="primary" onClick={handlePlayPause} size="large">
+          {isPlaying ? <Pause fontSize="large" /> : <PlayArrow fontSize="large" />}
+        </IconButton>
+        <IconButton onClick={() => currentId !== null && currentId > 0 && playSentence(currentId - 1)} disabled={currentId === null || currentId <= 0} size="large">
+          <SkipPrevious />
+        </IconButton>
+        <IconButton onClick={() => currentId !== null && currentId < sentences.length - 1 && playSentence(currentId + 1)} disabled={currentId === null || currentId >= sentences.length - 1} size="large">
+          <SkipNext />
+        </IconButton>
       </Stack>
 
       <FormControl size="small" style={{ minWidth: 120 }}>
