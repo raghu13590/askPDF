@@ -1,5 +1,3 @@
-
-
 """
 main.py
 --------
@@ -123,6 +121,16 @@ async def check_rag_status(collection_name: str):
             return resp.json()
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+
+@app.get("/health")
+async def health():
+    """
+    Service health check endpoint.
+    Returns:
+        Status OK if service is running.
+    """
+    return {"status": "ok"}
 
 
 # Serve audio files

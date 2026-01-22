@@ -1,4 +1,3 @@
-
 """
 main.py - FastAPI entrypoint for the RAG Service
 
@@ -20,19 +19,22 @@ Dependencies:
 """
 
 import os
-from dotenv import load_dotenv
-load_dotenv()
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from langchain_core.messages import AIMessage, HumanMessage
+from httpx import AsyncClient
 
-from rag import index_document
 from agent import app as agent_app
+from rag import index_document
 from vectordb.qdrant import QdrantAdapter
+from models import check_chat_model_ready, check_embed_model_ready
 
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(title="RAG Service")
 
@@ -44,11 +46,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class IndexRequest(BaseModel):
     """Request body for /index endpoint."""
     text: str
     embedding_model: str
     metadata: Optional[Dict[str, Any]] = None
+
 
 class ChatRequest(BaseModel):
     """Request body for /chat endpoint."""
@@ -57,6 +61,7 @@ class ChatRequest(BaseModel):
     embedding_model: str
     collection_name: Optional[str] = None
     history: List[Dict[str, str]] = []  # list of {role: "user"|"assistant", content: "..."}
+
 
 @app.post("/index")
 async def index_endpoint(req: IndexRequest):
@@ -71,13 +76,14 @@ async def index_endpoint(req: IndexRequest):
         result = await index_document(
             text=req.text,
             embedding_model_name=req.embedding_model,
-            metadata=req.metadata
+            metadata=req.metadata,
         )
         return result
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/chat")
 async def chat_endpoint(req: ChatRequest):
@@ -89,7 +95,6 @@ async def chat_endpoint(req: ChatRequest):
         Answer and context from the agent.
     """
     try:
-        from langchain_core.messages import HumanMessage, AIMessage
         chat_history = []
         for msg in req.history:
             if msg["role"] == "user":
@@ -104,7 +109,7 @@ async def chat_endpoint(req: ChatRequest):
             "embedding_model": req.embedding_model,
             "collection_name": req.collection_name,
             "context": "",
-            "answer": ""
+            "answer": "",
         }
 
         result = await agent_app.ainvoke(inputs)
@@ -113,6 +118,7 @@ async def chat_endpoint(req: ChatRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/status")
 async def status_endpoint(collection_name: str):
@@ -123,13 +129,13 @@ async def status_endpoint(collection_name: str):
     Returns:
         Status and collection name.
     """
-    """Check if a collection exists and is ready"""
     try:
         db = QdrantAdapter()
         exists = await db.collection_exists(collection_name)
         return {"status": "ready" if exists else "not_ready", "collection": collection_name}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/models")
 async def get_models():
@@ -138,14 +144,12 @@ async def get_models():
     Returns:
         List of model IDs or fallback defaults if the LLM API/server is unavailable.
     """
-    # Fetch available models from LLM API/server
     llm_api_url = os.getenv("LLM_API_URL")
     try:
         if not llm_api_url.endswith("/v1"):
             llm_api_url = f"{llm_api_url}/v1"
 
-        async with httpx.AsyncClient() as client:
-            # Assuming standard OpenAI endpoint /v1/models
+        async with AsyncClient() as client:
             resp = await client.get(f"{llm_api_url}/models")
             if resp.status_code == 200:
                 data = resp.json()
@@ -160,6 +164,7 @@ async def get_models():
         print(error_msg, flush=True)
         raise HTTPException(status_code=500, detail=error_msg)
 
+
 @app.get("/health/model")
 async def model_health_endpoint(model: str):
     """
@@ -169,10 +174,9 @@ async def model_health_endpoint(model: str):
     Returns:
         Model readiness status.
     """
-    """Specific check for a model's availability"""
-    from models import is_chat_model_ready
     ready = await is_chat_model_ready(model)
     return {"model": model, "ready": ready}
+
 
 @app.get("/health/is_chat_model_ready")
 async def is_chat_model_ready(model: str):
@@ -183,9 +187,9 @@ async def is_chat_model_ready(model: str):
     Returns:
         Model readiness status.
     """
-    from models import is_chat_model_ready
-    ready = await is_chat_model_ready(model)
+    ready = await check_chat_model_ready(model)
     return {"model": model, "chat_model_ready": ready}
+
 
 @app.get("/health/is_embed_model_ready")
 async def is_embed_model_ready(model: str):
@@ -196,9 +200,9 @@ async def is_embed_model_ready(model: str):
     Returns:
         Model readiness status.
     """
-    from models import is_embed_model_ready
-    ready = await is_embed_model_ready(model)
+    ready = await check_embed_model_ready(model)
     return {"model": model, "embed_model_ready": ready}
+
 
 @app.get("/health")
 async def health():

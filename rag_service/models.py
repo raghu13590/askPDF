@@ -40,7 +40,7 @@ def get_embedding_model(model_name: str):
         check_embedding_ctx_length=False
     )
 
-async def is_chat_model_ready(model_name: str) -> bool:
+async def check_chat_model_ready(model_name: str) -> bool:
     """
     Check if the supplied model is a chat model and is ready in the LLM API/server.
     Returns True if ready, False if not ready or not found.
@@ -89,7 +89,7 @@ async def is_chat_model_ready(model_name: str) -> bool:
         logging.exception("Exception during model readiness check")
         return False
 
-async def is_embed_model_ready(model_name: str) -> bool:
+async def check_embed_model_ready(model_name: str) -> bool:
     """
     Check if the supplied model is an embedding model and is ready in the LLM API/server.
     Returns True if ready, False if not ready or not found.

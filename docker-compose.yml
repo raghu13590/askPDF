@@ -16,6 +16,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   backend:
     build:
@@ -32,6 +37,11 @@ services:
       - ./backend:/app/backend
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   rag-service:
     build:
@@ -50,6 +60,11 @@ services:
       - ./rag_service:/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -57,6 +72,11 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   qdrant_data:
