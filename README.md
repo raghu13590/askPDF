@@ -1,6 +1,6 @@
 # askpdf
 
-A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG (Retrieval Augmented Generation)**, and **AI chat** capabilities. Upload a PDF, have it read aloud with synchronized text highlighting, and chat with your document using AI.
+A full-stack PDF reading assistant with **Text-to-Speech (TTS)**, **RAG (Retrieval Augmented Generation)**, and **AI chat**—all designed to run privately and locally on your own machine. Upload a PDF, have it read aloud with synchronized text highlighting, and chat with your document using AI. Everything works for free using open-source models like Docker Model Runner, Ollama, or LMStudio—no cloud/subscriptions required.
 
 ## 🌟 Features
 
@@ -25,6 +25,9 @@ A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG
 - **Auto-Scroll**: Both PDF and Chat automatically keep the active being-read content in view
 - **Model Selection**: Centralized embedding model selection and dynamic LLM discovery
 
+### 🖥️ Private & Local Design
+All features of this app can be run entirely on your own machine or laptop, using only local resources. Document processing, AI chat, and TTS all happen locally—no data is sent to external servers. You can use free, open-source models with Docker Model Runner, Ollama, or LMStudio, so there are no required cloud costs or subscriptions.
+
 ## 🏗️ Architecture
 
 ```
@@ -37,11 +40,11 @@ A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG
 └─────────────────┴─────────────────┴─────────────────┴───────────────────────┘
                                           │
                                           ▼
-                            ┌─────────────────────────┐
-                            │   DMR / Ollama / LLM    │
-                            │   (OpenAI-compatible)   │
-                            │      Port: 12434        │
-                            └─────────────────────────┘
+                            ┌──────────────────────────────────────────────┐
+                            │         DMR / Ollama / LMStudio / LLM        │
+                            │            (OpenAI-compatible)               │
+                            │             Port: 12434 (default)            │
+                            └──────────────────────────────────────────────┘
 ```
 
 ### Services Overview
@@ -52,18 +55,20 @@ A full-stack PDF reading assistant that combines **Text-to-Speech (TTS)**, **RAG
 | **Backend** | 8000 | FastAPI server for PDF processing and TTS |
 | **RAG Service** | 8001 | FastAPI server for document indexing and AI chat |
 | **Qdrant** | 6333 | Vector database for semantic search |
-| **DMR/Ollama** | 12434 | Local LLM server (external, user-provided) |
+| **DMR/Ollama/LMStudio** | 12434 | Local LLM server (external, user-provided) |
+
 
 ## 📋 Prerequisites
 
 - **Docker** and **Docker Compose**
-- **Local LLM Server**: The app is configured to use **Docker Model Runner (DMR)** by default on port \`12434\`.
+- **Local LLM Server**: The app is configured to use an **OpenAI-compatible API** by default on port `12434`.
   - **Option A: DMR (Default)** - Built into Docker Desktop.
   - **Option B: Ollama** - Requires running on port `12434` or updating configuration.
+  - **Option C: LMStudio** - Desktop app, exposes OpenAI-compatible API (default: `http://localhost:1234/v1`).
 
 ### Required Models (on your LLM server)
-- **LLM Model**: e.g., `ai/qwen3:latest` (DMR) or `llama3` (Ollama)
-- **Embedding Model**: e.g., `ai/nomic-embed-text-v1.5:latest` (DMR) or `nomic-embed-text` (Ollama)
+- **LLM Model**: e.g., `ai/qwen3:latest` (DMR), `llama3` (Ollama), or any chat model supported by LMStudio
+- **Embedding Model**: e.g., `ai/nomic-embed-text-v1.5:latest` (DMR), `nomic-embed-text` (Ollama), or any embedding model supported by LMStudio
 
 ## 🚀 Quick Start
 
@@ -95,7 +100,7 @@ LLM_API_URL=http://host.docker.internal:11434
 
 ### 3. Start Your Local LLM Server
 
-The application requires an OpenAI-compatible API for LLM and embeddings. You can use either Docker Model Runner (DMR) or Ollama as your local LLM server.
+The application requires an OpenAI-compatible API for LLM and embeddings. You can use Docker Model Runner (DMR), Ollama, or LMStudio as your local LLM server.
 
 #### Option A: Docker Model Runner (DMR) (Recommended)
 
@@ -117,6 +122,19 @@ The application requires an OpenAI-compatible API for LLM and embeddings. You ca
 
 
 #### Option B: Ollama
+#### Option C: LMStudio
+
+1. Download and install [LMStudio](https://lmstudio.ai/) on your machine.
+2. Launch LMStudio and load your desired LLM and embedding models.
+3. LMStudio exposes an OpenAI-compatible API at `http://localhost:1234/v1` by default.
+4. Edit your `.env` file and set:
+  ```env
+  LLM_API_URL=http://host.docker.internal:1234/v1
+  ```
+  (If running outside Docker, use `http://localhost:1234/v1`.)
+5. Restart your containers for changes to take effect.
+
+> **Note:** LMStudio supports a wide range of models and provides a user-friendly interface for model management. Ensure the models you want to use are loaded and available in LMStudio.
 
 Ollama runs on port `11434` by default. The easiest way to use Ollama with this app is to update your `.env` file (recommended):
 > **Note:** Ollama supports the OpenAI-compatible API (used by this app) starting from version **0.1.34** and above. Ensure your Ollama installation is up to date.
