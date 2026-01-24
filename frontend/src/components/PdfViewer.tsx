@@ -30,9 +30,10 @@ type Props = {
     onJump: (id: number) => void;
     autoScroll: boolean;
     isResizing?: boolean;
+    highlightEnabled?: boolean;
 };
 
-const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, onJump, autoScroll, isResizing }: Props) {
+const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, onJump, autoScroll, isResizing, highlightEnabled = true }: Props) {
     const [numPages, setNumPages] = useState<number | null>(null);
     const [pageWidth, setPageWidth] = useState<number>(600); // Actual width for PDF rendering
     const [scale, setScale] = useState<number>(1); // CSS scale for instant feedback
@@ -110,6 +111,7 @@ const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, 
 
     // Optimized overlay rendering using pre-calculated map
     const getPageOverlays = (pageNumber: number) => {
+        if (!highlightEnabled) return null;
         const pageData = sentencesByPage[pageNumber] || [];
         // ONLY render the highlight for the current active sentence
         const activeSentence = pageData.find(s => s.id === currentId);
@@ -141,7 +143,7 @@ const PdfViewer = React.memo(function PdfViewer({ pdfUrl, sentences, currentId, 
                             top: `${((bbox.page_height - (bbox.y + bbox.height)) / bbox.page_height) * 100}%`,
                             width: `${(bbox.width / bbox.page_width) * 100}%`,
                             height: `${(bbox.height / bbox.page_height) * 100}%`,
-                            backgroundColor: 'rgba(255, 255, 0, 0.4)',
+                            backgroundColor: 'rgba(255, 255, 0, 0.3)',
                         }}
                     />
                 ))}

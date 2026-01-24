@@ -1,5 +1,7 @@
+import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Container, Stack, Typography, Box, Button, FormControl, InputLabel, Select, MenuItem, CssBaseline } from "@mui/material";
+import { Container, Stack, Typography, Box, Button, FormControl, InputLabel, Select, MenuItem, CssBaseline, IconButton, Tooltip } from "@mui/material";
+import FluorescentIcon from '@mui/icons-material/Fluorescent';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -20,6 +22,9 @@ export default function Home() {
   const [playRequestId, setPlayRequestId] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [chatSentences, setChatSentences] = useState<any[]>([]);
+
+  // Highlight toggle
+  const [highlightEnabled, setHighlightEnabled] = useState(true);
 
   const [fileHash, setFileHash] = useState<string | null>(null);
 
@@ -65,6 +70,30 @@ export default function Home() {
       const res = await fetch(`${apiBase}/health/is_embed_model_ready?model=${encodeURIComponent(embedModel)}`);
       const data = await res.json();
       setIsEmbedModelValid(data.embed_model_ready === true);
+      // If a PDF is already loaded, re-trigger upload/indexing to create new collection
+      if (fileHash && pdfUrl && data.embed_model_ready === true) {
+        // Simulate re-upload by calling the backend index endpoint
+        // You may need to call your backend API here to re-index
+        const backendApi = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        // Assuming you have an endpoint like /index_document
+        // You may need to pass upload_id, file_hash, and embedModel
+        try {
+          const uploadId = fileHash; // assuming fileHash is used as upload_id
+          const indexRes = await fetch(`${apiBase}/index_document`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: "", // backend will parse PDF
+              embedding_model_name: embedModel,
+              metadata: { file_hash: fileHash, upload_id: uploadId }
+            })
+          });
+          const indexData = await indexRes.json();
+          // Optionally, handle indexData (status, errors, etc.)
+        } catch (err) {
+          console.warn("Failed to re-index PDF with new embedding model", err);
+        }
+      }
     } catch (err) {
       setIsEmbedModelValid(false);
     }
@@ -175,15 +204,26 @@ export default function Home() {
                   setActiveSource('pdf');
                 }}
               />
-              <Button
-                variant={autoScroll ? "contained" : "outlined"}
-                color={autoScroll ? "primary" : "inherit"}
-                size="small"
-                onClick={() => setAutoScroll(!autoScroll)}
-                sx={{ fontWeight: 600 }}
-              >
-                AUTO-SCROLL
-              </Button>
+              <Tooltip title={autoScroll ? "Disable Auto-Scroll" : "Enable Auto-Scroll"}>
+                <IconButton
+                  color={autoScroll ? "primary" : "default"}
+                  onClick={() => setAutoScroll(a => !a)}
+                  sx={{ border: autoScroll ? 1 : 0, borderColor: autoScroll ? 'primary.main' : 'transparent' }}
+                  size="small"
+                >
+                  <VerticalAlignCenterIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={highlightEnabled ? "Disable Highlighting" : "Enable Highlighting"}>
+                <IconButton
+                  color={highlightEnabled ? "primary" : "default"}
+                  onClick={() => setHighlightEnabled(h => !h)}
+                  sx={{ border: highlightEnabled ? 1 : 0, borderColor: highlightEnabled ? 'primary.main' : 'transparent' }}
+                  size="small"
+                >
+                  <FluorescentIcon />
+                </IconButton>
+              </Tooltip>
               <Button
                 variant="outlined"
                 size="small"
@@ -223,6 +263,7 @@ export default function Home() {
                 }}
                 autoScroll={autoScroll}
                 isResizing={isResizing}
+                highlightEnabled={highlightEnabled}
               />
             ) : (
               <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.50', p: 4 }}>
