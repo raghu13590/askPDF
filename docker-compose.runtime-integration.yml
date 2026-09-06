@@ -468,6 +468,24 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
 
+  runtime-test-runner:
+    build:
+      context: .
+      dockerfile: langgraph_runtime/Dockerfile.test
+    entrypoint: ["python", "-m", "langgraph_runtime.test_runner"]
+    environment:
+      RUN_RUNTIME_DB_MIGRATIONS: "false"
+      RUNTIME_TEST_TARGET: /app/langgraph_runtime/tests
+      AGENT_RUNTIME_EXECUTION_DATABASE_URL: postgresql+asyncpg://postgres:postgres@runtime-checkpoint-db:5432/runtime_checkpoints
+      AGENT_CHECKPOINT_DATABASE_URL: postgresql+asyncpg://postgres:postgres@runtime-checkpoint-db:5432/runtime_checkpoints
+      ASKPDF_AGENT_CHECKPOINTER: postgres
+      LANGGRAPH_RUNTIME_BINDING_SECRET: langgraph-runtime-integration-binding-secret-012345678901234567890123
+    depends_on:
+      runtime-checkpoint-db-init:
+        condition: service_completed_successfully
+      langgraph-runtime:
+        condition: service_healthy
+
 volumes:
   runtime_integration_postgres_data:
   runtime_integration_weaviate_data:

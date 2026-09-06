@@ -21,9 +21,6 @@ services:
       - TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgresql:5432/test_askpdf
       - POSTGRES_POOL_SIZE=10
       - POSTGRES_MAX_OVERFLOW=20
-      - LANGGRAPH_RUNTIME_URL=http://langgraph-runtime:8100
-      - LANGGRAPH_RUNTIME_TOKEN=test-langgraph-runtime-token-32-characters
-      - LANGGRAPH_RUNTIME_BINDING_SECRET=test-langgraph-runtime-binding-secret-32-characters
       - WEAVIATE_URL=http://weaviate:8080
       - WEAVIATE_HYBRID_ALPHA=0.7
       - QUERY_DEFAULTS_LIMIT=20
@@ -51,6 +48,7 @@ services:
       - DOCLING_FORCE_FULL_PAGE_OCR=False
       - DOCLING_DO_FORMULA_ENRICHMENT=False
       - ASKPDF_REPO_DIR=/workspace
+      - PYTHONPATH=/app
     depends_on:
       postgresql:
         condition: service_healthy
@@ -58,7 +56,6 @@ services:
         condition: service_healthy
     volumes:
       - ./rag_service:/app
-      - ./langgraph_runtime:/app/langgraph_runtime:ro
       - .:/workspace:ro
       - test_data:/data
       - content_test_data:/static

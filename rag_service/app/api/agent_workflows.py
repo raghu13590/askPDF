@@ -287,7 +287,7 @@ def _debug_payload_for_response(run) -> Dict[str, Any] | None:
             run.id,
             debug.get("version"),
         )
-        return dict(debug)
+        return None
     trace = debug.get("trace") if isinstance(debug.get("trace"), dict) else None
     summary = debug.get("summary") if isinstance(debug.get("summary"), dict) else None
     if trace is None or summary is None:
@@ -315,6 +315,17 @@ def _debug_payload_for_response(run) -> Dict[str, Any] | None:
             "operation_refs": topology_available,
         },
     }
+
+
+def _debug_trace_failure_for_response(run) -> Dict[str, Any] | None:
+    debug = run.debug_trace_json if isinstance(run.debug_trace_json, dict) else None
+    if not debug:
+        return None
+    if not is_current_debug_payload(debug):
+        return {"code": "debug_trace_contract_invalid", "retryable": False, "run_id": str(run.id)}
+    if not isinstance(debug.get("trace"), dict) or not isinstance(debug.get("summary"), dict):
+        return {"code": "debug_trace_shape_invalid", "retryable": False, "run_id": str(run.id)}
+    return None
 
 
 def _turn_summary_payload(turn) -> Dict[str, Any]:
@@ -359,6 +370,7 @@ def _run_payload(run, turns=None) -> Dict[str, Any]:
         "retrieval_quality_report": (run.metrics_json or {}).get("retrieval_quality_report") if isinstance(run.metrics_json, dict) else None,
         "grounding_report": (run.metrics_json or {}).get("grounding_report") if isinstance(run.metrics_json, dict) else None,
         "debug": _debug_payload_for_response(run),
+        "debug_trace_failure": _debug_trace_failure_for_response(run),
         "run_kind": (run.run_metadata_json or {}).get("run_kind"),
         "builder_session_id": (run.run_metadata_json or {}).get("builder_session_id"),
         "final_output": (run.debug_trace_json or {}).get("final_output") if isinstance(run.debug_trace_json, dict) else None,

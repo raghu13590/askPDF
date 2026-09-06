@@ -10,9 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY rag_service/requirements-control-plane.txt requirements-control-plane.txt
 COPY rag_service/requirements-dev.txt requirements-dev.txt
-COPY langgraph_runtime/requirements.txt requirements-langgraph-service.txt
 RUN pip install -r requirements-dev.txt
-RUN pip install -r requirements-langgraph-service.txt
 RUN python -m spacy download en_core_web_sm
 
 COPY rag_service/alembic alembic
@@ -21,7 +19,5 @@ COPY rag_service/app app
 COPY rag_service/runtime_protocol runtime_protocol
 COPY rag_service/tests tests
 COPY rag_service/alembic.ini rag_service/main.py ./
-COPY langgraph_runtime langgraph_runtime
-COPY langgraph_runtime/tests /app/langgraph_runtime/tests
 
 CMD ["python", "scripts/run_tests.py"]

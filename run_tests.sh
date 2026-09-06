@@ -178,7 +178,7 @@ if [ "${RUN_LANGGRAPH_RUNTIME:-0}" = "1" ]; then
     echo "Verifying the immutable production control-plane image..."
     "${DOCKER_COMPOSE[@]}" "${EXTERNAL_RUNTIME_COMPOSE_ARGS[@]}" exec -T rag-service python -c \
         'import importlib.util; from runtime_protocol.contracts import AgentDefinition; from app.runtime.registry import RuntimeRegistry; assert importlib.util.find_spec("langgraph") is None; registry=RuntimeRegistry(); registry.initialize(); definition=AgentDefinition(definition_id="router_rag_agent", framework="langgraph", builder_id="langgraph_graph"); adapter=registry.get(definition); assert adapter.__class__.__name__ == "HttpLangGraphRuntimeAdapter" and adapter.framework == "langgraph"'
-    external_runtime_test test-runner --langgraph-runtime
+    external_runtime_test runtime-test-runner
     external_runtime_test test-runner --file test_runtime_contracts_pytest.py
     external_runtime_test test-runner --file test_runtime_http_adapter_pytest.py
     if [ "${RUN_LANGGRAPH_RUNTIME_REAL:-0}" = "1" ]; then
@@ -190,8 +190,8 @@ if [ "${RUN_LANGGRAPH_RUNTIME:-0}" = "1" ]; then
     else
         external_runtime_test -e EXTERNAL_RUNTIME_SMOKE=true -e EXTERNAL_RUNTIME_LLM_MODEL=external_runtime-deterministic test-runner --file test_external_runtime_smoke_pytest.py
     fi
-    external_runtime_test test-runner --agent-checkpoint --file test_runtime_service_execution_pytest.py
-    external_runtime_test test-runner --agent-checkpoint --file test_runtime_service_lifecycle_pytest.py
+    external_runtime_test -e RUN_RUNTIME_DB_MIGRATIONS=true -e RUNTIME_TEST_TARGET=/app/langgraph_runtime/tests/test_runtime_service_execution_pytest.py runtime-test-runner
+    external_runtime_test -e RUN_RUNTIME_DB_MIGRATIONS=true -e RUNTIME_TEST_TARGET=/app/langgraph_runtime/tests/test_runtime_service_lifecycle_pytest.py runtime-test-runner
     external_runtime_test test-runner --file test_agent_runtime_reconciliation_pytest.py
     external_runtime_test test-runner --file test_control_plane_import_boundary_pytest.py
     "${DOCKER_COMPOSE[@]}" "${EXTERNAL_RUNTIME_COMPOSE_ARGS[@]}" exec -T langgraph-runtime python -c \
@@ -252,7 +252,7 @@ except urllib.error.HTTPError as exc: body=json.load(exc); assert exc.code == 50
         exit 1
     fi
     echo "Verifying execution recovery after restart and lease expiry..."
-    external_runtime_test -e AGENT_RUNTIME_RECOVERY_LOOP_ENABLED=true test-runner --agent-checkpoint --file test_runtime_service_lifecycle_pytest.py --test test_recovery_loop_reclaims_a_lease_after_restart
+    external_runtime_test -e RUN_RUNTIME_DB_MIGRATIONS=true -e AGENT_RUNTIME_RECOVERY_LOOP_ENABLED=true -e RUNTIME_TEST_TARGET=/app/langgraph_runtime/tests/test_runtime_service_lifecycle_pytest.py runtime-test-runner --test test_recovery_loop_reclaims_a_lease_after_restart
     trap - ERR
     exit 0
 fi

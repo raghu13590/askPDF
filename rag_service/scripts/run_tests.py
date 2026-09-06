@@ -34,21 +34,14 @@ UNIT_TEST_FILES = [
     "test_hermes_runtime_adapter_pytest.py",
     "test_external_hermes_runtime_smoke_pytest.py",
     "test_real_hermes_container_smoke_pytest.py",
-    "test_agent_prompt_behavior.py",
     "test_agent_retry_behavior.py",
     "test_agent_tool_contract_pytest.py",
     "test_dimension_mismatch_scenarios.py",
-    "test_external_research_tools.py",
-    "test_runtime_execution_store_pytest.py",
     "test_runtime_http_adapter_pytest.py",
-    "test_langgraph_boundary_gaps_pytest.py",
-    "test_runtime_contracts_pytest.py",
-    "test_runtime_hardening_pytest.py",
     "test_runtime_configuration_pytest.py",
     "test_runtime_events_pytest.py",
     "test_runtime_capability_gate_pytest.py",
     "test_runtime_capability_resolver_pytest.py",
-    "test_langgraph_capabilities_pytest.py",
     "test_provider_clients.py",
     "test_first_party_tool_contracts.py",
     "test_llm_server_client_pytest.py",
@@ -63,9 +56,7 @@ UNIT_TEST_FILES = [
     "test_production_edge_cases.py",
     "test_temporal_metadata_retrieval.py",
     "test_time_utils.py",
-    "test_tool_registry_contracts.py",
     "test_http_client_lifecycle.py",
-    "test_workflow_budget.py",
 ]
 
 MCP_TEST_FILES = [
@@ -76,10 +67,6 @@ MCP_TEST_FILES = [
     "test_mcp_compatibility.py",
     "test_mcp_tool_adapter.py",
     "test_mcp_framework_neutral.py",
-]
-
-LANGGRAPH_RUNTIME_TEST_TARGETS = [
-    "/workspace/langgraph_runtime/tests/test_mcp_runtime_invocation_pytest.py",
 ]
 
 DB_TEST_FILES = [
@@ -106,7 +93,6 @@ API_TEST_FILES = [
 ]
 
 INTEGRATION_TEST_FILES = [
-    "test_agent_workflows_pytest.py",
     "test_api_integration_pytest.py",
     "test_model_aware_integration.py",
 ]
@@ -114,10 +100,6 @@ INTEGRATION_TEST_FILES = [
 SCHEMA_TEST_FILES = [
     "test_schema_guardrails.py",
     "test_migration_smoke_pytest.py",
-]
-
-AGENT_CHECKPOINT_TEST_TARGETS = [
-    "/app/tests/test_runtime_checkpoint_pytest.py::test_runtime_graph_resumes_after_postgres_checkpointer_reopen",
 ]
 
 DIAGNOSTIC_PACKAGES = (
@@ -186,13 +168,6 @@ async def _drop_database(admin_url: str, db_name: str) -> None:
         await conn.close()
 
 
-async def _setup_agent_checkpointer(database_url: str) -> None:
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
-    async with AsyncPostgresSaver.from_conn_string(_postgres_driver_url(database_url)) as checkpointer:
-        await checkpointer.setup()
-
-
 def _run(command: list[str], env: dict[str, str] | None = None) -> None:
     print("+ " + " ".join(command), flush=True)
     subprocess.run(command, cwd=APP_DIR, env=env, check=True)
@@ -235,6 +210,12 @@ def _pytest_targets(args: argparse.Namespace) -> list[str]:
         raise SystemExit("Error: --test requires --file to be specified")
 
     group = args.group
+    group = {
+        "control-plane-unit": "unit",
+        "control-plane-db": "db",
+        "control-plane-api": "api",
+        "control-plane-mcp": "mcp",
+    }.get(group, group)
     if args.standalone or args.pdf:
         group = "standalone"
     elif args.unit:
@@ -243,16 +224,12 @@ def _pytest_targets(args: argparse.Namespace) -> list[str]:
         group = "db"
     elif args.integration:
         group = "integration"
-    elif args.agent_checkpoint:
-        group = "agent-checkpoint"
     elif args.api:
         group = "api"
     elif args.schema:
         group = "schema"
     elif args.mcp:
         group = "mcp"
-    elif args.langgraph_runtime:
-        group = "langgraph-runtime"
     elif args.all or args.all_tests:
         group = "all"
 
@@ -264,18 +241,24 @@ def _pytest_targets(args: argparse.Namespace) -> list[str]:
         return [_test_path(name) for name in API_TEST_FILES]
     if group == "integration":
         return [_test_path(name) for name in INTEGRATION_TEST_FILES]
-    if group == "agent-checkpoint":
-        return AGENT_CHECKPOINT_TEST_TARGETS
     if group == "schema":
         return [_test_path(name) for name in SCHEMA_TEST_FILES]
     if group == "mcp":
         return [_test_path(name) for name in MCP_TEST_FILES]
-    if group == "langgraph-runtime":
-        return LANGGRAPH_RUNTIME_TEST_TARGETS
     if group == "standalone":
         return []
     if group == "all":
-        return [str(APP_DIR / "tests")]
+        return [
+            _test_path(name)
+            for name in dict.fromkeys(
+                UNIT_TEST_FILES
+                + DB_TEST_FILES
+                + API_TEST_FILES
+                + INTEGRATION_TEST_FILES
+                + SCHEMA_TEST_FILES
+                + MCP_TEST_FILES
+            )
+        ]
 
     raise SystemExit(f"Unknown test group: {group}")
 
@@ -285,6 +268,8 @@ def _should_run_standalone(args: argparse.Namespace) -> bool:
         return True
     if args.group == "standalone" or args.standalone:
         return True
+    if args.group.startswith("control-plane-"):
+        return False
     if args.file or args.test:
         return False
     if (
@@ -293,11 +278,9 @@ def _should_run_standalone(args: argparse.Namespace) -> bool:
         or args.db_tests
         or args.db_only
         or args.integration
-        or args.agent_checkpoint
         or args.api
         or args.schema
         or args.mcp
-        or args.langgraph_runtime
     ):
         return False
     return args.group == "all" or args.all or args.all_tests
@@ -309,13 +292,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--group",
         choices=[
             "unit",
+            "control-plane-unit",
             "db",
+            "control-plane-db",
             "api",
+            "control-plane-api",
             "integration",
-            "agent-checkpoint",
             "schema",
             "mcp",
-            "langgraph-runtime",
+            "control-plane-mcp",
             "standalone",
             "all",
         ],
@@ -333,11 +318,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--db-tests", action="store_true")
     parser.add_argument("--db-only", action="store_true")
     parser.add_argument("--integration", action="store_true")
-    parser.add_argument("--agent-checkpoint", action="store_true")
     parser.add_argument("--api", action="store_true")
     parser.add_argument("--schema", action="store_true")
     parser.add_argument("--mcp", action="store_true")
-    parser.add_argument("--langgraph-runtime", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--all-tests", action="store_true")
     return parser.parse_args(argv)
@@ -347,8 +330,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     _print_dependency_versions()
     targets = _pytest_targets(args)
-    agent_checkpoint_run = args.agent_checkpoint or args.group == "agent-checkpoint"
-
     base_database_url = os.environ.get("DATABASE_URL")
     if not base_database_url:
         raise SystemExit("DATABASE_URL environment variable is required")
@@ -364,32 +345,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Test data directory: {data_dir}", flush=True)
 
     asyncio.run(_create_database(admin_url, test_db_name))
-    if agent_checkpoint_run:
-        print("Preparing LangGraph Postgres checkpointer schema", flush=True)
-        asyncio.run(_setup_agent_checkpointer(test_db_url))
-
     env = os.environ.copy()
     env["DATABASE_URL"] = test_db_url
     env["TEST_DATABASE_URL"] = test_db_url
     env["DATA_DIR"] = data_dir
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(REPO_DIR), str(APP_DIR)]))
-    if agent_checkpoint_run:
-        env["ASKPDF_AGENT_CHECKPOINTER"] = "postgres"
-        env["AGENT_CHECKPOINT_DATABASE_URL"] = test_db_url
-        env["ASKPDF_AGENT_CHECKPOINTER_SETUP"] = "false"
-        env["ASKPDF_RUN_POSTGRES_CHECKPOINT_TEST"] = "1"
-    else:
-        env["ASKPDF_AGENT_CHECKPOINTER"] = "memory"
-        env.pop("AGENT_CHECKPOINT_DATABASE_URL", None)
-        env.pop("ASKPDF_AGENT_CHECKPOINTER_SETUP", None)
-        env.pop("ASKPDF_RUN_POSTGRES_CHECKPOINT_TEST", None)
-
-    # Runtime state has its own schema authority. Prepare it for every test
-    # group because the runtime store is exercised by both unit and integration
-    # tests, while remaining isolated from application Alembic revisions.
-    env["AGENT_RUNTIME_EXECUTION_DATABASE_URL"] = test_db_url
-    env["RUN_RUNTIME_DB_MIGRATIONS"] = "true"
-    _run(["python", "-m", "langgraph_runtime.migrate"], env=env)
+    env["ASKPDF_AGENT_CHECKPOINTER"] = "memory"
+    env.pop("AGENT_CHECKPOINT_DATABASE_URL", None)
+    env.pop("ASKPDF_AGENT_CHECKPOINTER_SETUP", None)
+    env.pop("ASKPDF_RUN_POSTGRES_CHECKPOINT_TEST", None)
 
     try:
         if targets:

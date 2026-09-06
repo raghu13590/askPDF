@@ -53,9 +53,13 @@ jobs:
           docker build --build-arg DOWNLOAD_LOCAL_MODELS=false -f rag_service/Dockerfile -t askpdf-control-plane .
           docker build -f langgraph_runtime/Dockerfile -t askpdf-langgraph-runtime .
           docker build -f hermes_runtime/Dockerfile -t askpdf-hermes-runtime .
+          docker build --build-arg DOWNLOAD_LOCAL_MODELS=false -f rag_service/Dockerfile.test -t askpdf-control-plane-tests .
+          docker build -f langgraph_runtime/Dockerfile.test -t askpdf-langgraph-runtime-tests .
           docker run --rm askpdf-control-plane python -c 'import importlib.util; assert importlib.util.find_spec("langgraph") is None; assert importlib.util.find_spec("langgraph_runtime") is None'
           docker run --rm askpdf-langgraph-runtime python -c 'import importlib.util, langgraph, runtime_protocol, langgraph_runtime; assert importlib.util.find_spec("app") is None'
           docker run --rm askpdf-hermes-runtime python -c 'import importlib.util, hermes_runtime, runtime_protocol; assert importlib.util.find_spec("langgraph") is None; assert importlib.util.find_spec("app") is None'
+          docker run --rm askpdf-control-plane-tests python -c 'import importlib.util, app, runtime_protocol; assert importlib.util.find_spec("langgraph") is None; assert importlib.util.find_spec("langgraph_runtime") is None'
+          docker run --rm askpdf-langgraph-runtime-tests python -c 'import importlib.util, langgraph, langgraph_runtime, runtime_protocol; assert importlib.util.find_spec("app") is None'
 
       - name: Check diff hygiene
         run: git diff --check
