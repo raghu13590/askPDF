@@ -178,6 +178,7 @@ if [ "${RUN_LANGGRAPH_RUNTIME:-0}" = "1" ]; then
     echo "Verifying the immutable production control-plane image..."
     "${DOCKER_COMPOSE[@]}" "${EXTERNAL_RUNTIME_COMPOSE_ARGS[@]}" exec -T rag-service python -c \
         'import importlib.util; from runtime_protocol.contracts import AgentDefinition; from app.runtime.registry import RuntimeRegistry; assert importlib.util.find_spec("langgraph") is None; registry=RuntimeRegistry(); registry.initialize(); definition=AgentDefinition(definition_id="router_rag_agent", framework="langgraph", builder_id="langgraph_graph"); adapter=registry.get(definition); assert adapter.__class__.__name__ == "HttpLangGraphRuntimeAdapter" and adapter.framework == "langgraph"'
+    external_runtime_test test-runner --langgraph-runtime
     external_runtime_test test-runner --file test_runtime_contracts_pytest.py
     external_runtime_test test-runner --file test_runtime_http_adapter_pytest.py
     if [ "${RUN_LANGGRAPH_RUNTIME_REAL:-0}" = "1" ]; then

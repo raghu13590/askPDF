@@ -78,6 +78,10 @@ MCP_TEST_FILES = [
     "test_mcp_framework_neutral.py",
 ]
 
+LANGGRAPH_RUNTIME_TEST_TARGETS = [
+    "/workspace/langgraph_runtime/tests/test_mcp_runtime_invocation_pytest.py",
+]
+
 DB_TEST_FILES = [
     "test_database_connection_pytest.py",
     "test_models_sqlmodel_pytest.py",
@@ -247,6 +251,8 @@ def _pytest_targets(args: argparse.Namespace) -> list[str]:
         group = "schema"
     elif args.mcp:
         group = "mcp"
+    elif args.langgraph_runtime:
+        group = "langgraph-runtime"
     elif args.all or args.all_tests:
         group = "all"
 
@@ -264,6 +270,8 @@ def _pytest_targets(args: argparse.Namespace) -> list[str]:
         return [_test_path(name) for name in SCHEMA_TEST_FILES]
     if group == "mcp":
         return [_test_path(name) for name in MCP_TEST_FILES]
+    if group == "langgraph-runtime":
+        return LANGGRAPH_RUNTIME_TEST_TARGETS
     if group == "standalone":
         return []
     if group == "all":
@@ -279,7 +287,18 @@ def _should_run_standalone(args: argparse.Namespace) -> bool:
         return True
     if args.file or args.test:
         return False
-    if args.unit or args.db or args.db_tests or args.db_only or args.integration or args.agent_checkpoint or args.api or args.schema or args.mcp:
+    if (
+        args.unit
+        or args.db
+        or args.db_tests
+        or args.db_only
+        or args.integration
+        or args.agent_checkpoint
+        or args.api
+        or args.schema
+        or args.mcp
+        or args.langgraph_runtime
+    ):
         return False
     return args.group == "all" or args.all or args.all_tests
 
@@ -288,7 +307,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run askPDF tests inside Docker.")
     parser.add_argument(
         "--group",
-        choices=["unit", "db", "api", "integration", "agent-checkpoint", "schema", "mcp", "standalone", "all"],
+        choices=[
+            "unit",
+            "db",
+            "api",
+            "integration",
+            "agent-checkpoint",
+            "schema",
+            "mcp",
+            "langgraph-runtime",
+            "standalone",
+            "all",
+        ],
         default=os.environ.get("TEST_GROUP", "all"),
     )
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -307,6 +337,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--api", action="store_true")
     parser.add_argument("--schema", action="store_true")
     parser.add_argument("--mcp", action="store_true")
+    parser.add_argument("--langgraph-runtime", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--all-tests", action="store_true")
     return parser.parse_args(argv)

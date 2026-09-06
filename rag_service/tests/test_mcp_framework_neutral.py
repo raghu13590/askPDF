@@ -5,38 +5,6 @@ import pytest
 from app.mcp.registry import MCP_TOOL_DEFINITIONS, enabled_definitions
 
 
-@pytest.mark.asyncio
-async def test_workflow_tool_invocation_dispatches_by_mcp_tool_name(monkeypatch):
-    from app.agent_workflows import runtime_invocation
-
-    calls = []
-
-    class FakeExecutor:
-        async def ainvoke(self, value, config=None):
-            calls.append((value, config))
-            return "mcp-result"
-
-    monkeypatch.setattr(
-        runtime_invocation,
-        "resolve_tool_executor",
-        lambda tool_name, *, caller_node, config: (calls.append((tool_name, caller_node, config)) or FakeExecutor()),
-    )
-
-    result = await runtime_invocation.invoke_tool_for_node(
-        "search_documents",
-        {"query": "question"},
-        state={},
-        config={},
-        node="retrieval_worker",
-        started=0.0,
-    )
-
-    assert result == "mcp-result"
-    assert calls[0][0] == "search_documents"
-    assert calls[1][0] == {"query": "question"}
-    assert "tool" not in inspect.signature(runtime_invocation.invoke_tool_for_node).parameters
-
-
 def test_mcp_runner_includes_all_framework_neutral_tests():
     from scripts.run_tests import MCP_TEST_FILES
 

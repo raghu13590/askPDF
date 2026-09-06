@@ -22,5 +22,6 @@ COPY rag_service/runtime_protocol runtime_protocol
 COPY rag_service/tests tests
 COPY rag_service/alembic.ini rag_service/main.py ./
 COPY langgraph_runtime langgraph_runtime
+COPY langgraph_runtime/tests /app/langgraph_runtime/tests
 
 CMD ["python", "scripts/run_tests.py"]

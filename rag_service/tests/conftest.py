@@ -26,22 +26,7 @@ from sqlmodel import SQLModel
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture(autouse=True)
-def configure_langgraph_test_limits():
-    """Explicitly configure runtime-only limits for direct component tests."""
-    from langgraph_runtime.models.llm import configure_runtime_limits
-
-    configure_runtime_limits(dict(os.environ))
-    yield
-
-os.environ.setdefault("LANGGRAPH_RUNTIME_TOKEN", "test-langgraph-runtime-token-32-characters")
-os.environ.setdefault("LANGGRAPH_RUNTIME_BINDING_SECRET", "test-langgraph-binding-secret-32-characters")
-os.environ.setdefault("ASKPDF_AGENT_CHECKPOINTER_SETUP", "false")
 os.environ.setdefault("HERMES_API_TOKEN", "test-hermes-api-token-32-characters")
-os.environ.setdefault("DEFAULT_TOKEN_BUDGET", "8192")
-os.environ.setdefault("REPLANS_LIMIT", "10")
-os.environ.setdefault("MAX_CUSTOM_INSTRUCTIONS_CHARS", "2000")
-os.environ.setdefault("MAX_SYSTEM_ROLE_CHARS", "500")
 
 from app.db.models_sqlmodel import (
     Project, Thread, File, ThreadFile,
