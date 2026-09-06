@@ -31,6 +31,7 @@ from app.agent_workflows.trace_details import sanitize_trace_detail
 from app.agent_workflows.trace_payloads import append_runtime_event_to_debug_payload
 from runtime_protocol.contracts import TERMINAL_RUNTIME_EVENT_KINDS
 from runtime_protocol.events import normalize_product_event_kind
+from app.runtime.behavior import continuation_is_linked, supports_course_correction
 from app.services.agent_task_budgets import (
     exhausted_dimensions,
     initial_budget_state,
@@ -2034,7 +2035,7 @@ async def respond_to_budget_review(
             previous = pending.get("decision") if isinstance(pending.get("decision"), dict) else {}
             if pending.get("status") != "pending":
                 if previous.get("idempotency_key") == idempotency_key:
-                    return task, True, str(run.framework or "") == "hermes"
+                    return task, True, continuation_is_linked(run)
                 raise AgentTaskConflict("budget_review_already_resolved", "Budget review is already resolved", current_version=task.version)
             if task.version != expected_version:
                 raise AgentTaskConflict("task_version_conflict", "Task version is stale", current_version=task.version)
@@ -2046,7 +2047,7 @@ async def respond_to_budget_review(
             now = utc_now()
             pending["status"] = "resolved"
             pending["resolved_at"] = now.isoformat()
-            linked_run = str(run.framework or "") == "hermes"
+            linked_run = continuation_is_linked(run)
             pending["decision"] = {
                 "action": decision,
                 "idempotency_key": idempotency_key,
@@ -2274,6 +2275,8 @@ async def submit_course_correction(
                 AgentTaskStatus.AWAITING_APPROVAL.value,
             }:
                 raise AgentTaskConflict("course_correction_unavailable", "Course correction is unavailable for this task state", current_version=task.version)
+            if not supports_course_correction(run):
+                raise AgentTaskConflict("runtime_capability_unsupported", "The selected runtime does not support course correction", current_version=task.version)
             normalized_instruction = " ".join(instruction.split()).strip()
             if not normalized_instruction:
                 raise AgentTaskConflict("course_correction_instruction_required", "Course correction instruction is required")
@@ -2284,7 +2287,7 @@ async def submit_course_correction(
             )).scalar_one())
             delivery_mode = (
                 "same_run_safe_boundary"
-                if str(run.framework or "") == "langgraph" and run.status not in TERMINAL_TASK_RUN_STATUSES
+                if not continuation_is_linked(run) and run.status not in TERMINAL_TASK_RUN_STATUSES
                 else "linked_run"
             )
             correction_id = str(uuid.uuid4())

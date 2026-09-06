@@ -44,6 +44,12 @@ from app.runtime.registry import RuntimeRegistry, adapter_for_definition, get_ru
 from app.runtime.builder_registry import builder_for_definition
 from app.runtime.operational_limits import positive_float_value
 from app.runtime.task_results import normalize_runtime_task_result
+from app.runtime.behavior import (
+    continuation_is_linked,
+    product_owns_budget_boundary,
+    product_owns_grounding,
+    supports_course_correction,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -500,11 +506,7 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
         if isinstance(value, Mapping)
     ]
     outbox_corrections = await tasks.pending_course_corrections(task.id)
-    pending_corrections = (
-        linked_run_corrections
-        if str(run.framework or "") == "hermes"
-        else [*linked_run_corrections, *outbox_corrections]
-    )
+    pending_corrections = linked_run_corrections if continuation_is_linked(run) else [*linked_run_corrections, *outbox_corrections]
     seen_correction_ids: set[str] = set()
     pending_corrections = [
         value for value in pending_corrections
@@ -512,10 +514,9 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
         and correction_id not in seen_correction_ids
         and not seen_correction_ids.add(correction_id)
     ]
-    hermes_corrections = pending_corrections if str(run.framework or "") == "hermes" else []
-    if hermes_corrections:
+    if pending_corrections and continuation_is_linked(run) and supports_course_correction(run):
         guidance = "\n".join(
-            f"- {value.get('instruction')}" for value in hermes_corrections if value.get("instruction")
+            f"- {value.get('instruction')}" for value in pending_corrections if value.get("instruction")
         )
         runtime_question = (
             f"{runtime_question}\n\nUser-authored course corrections for remaining work "
@@ -591,7 +592,7 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(task.id, worker_id))
     async def cancellation_requested() -> bool:
         return await tasks.task_cancel_requested(task.id) or (
-            str(run.framework or "") == "hermes" and await tasks.budget_boundary(task.id) is not None
+            product_owns_budget_boundary(run) and await tasks.budget_boundary(task.id) is not None
         )
 
     async def pause_requested() -> bool:
@@ -728,7 +729,7 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
         evidence_policy = dict((resolved_spec.get("config") or {}).get("task_policy") or {}).get("evidence")
         if (
             canonical_task_result
-            and str(run.framework or "") == "hermes"
+            and product_owns_grounding(run)
             and str(result.get("status") or "") == AgentRunStatus.COMPLETED.value
             and evidence_policy == "document_when_available"
         ):
@@ -773,12 +774,15 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
             AgentRunStatus.FAILED.value,
             AgentRunStatus.CANCELLED.value,
         }
-        if str(run.framework or "") == "hermes" and str(result.get("status") or "") in terminal_statuses:
+        # Delta-capable runtimes own the complete neutral task projection,
+        # including terminal transitions.  The legacy completion projector is
+        # only valid when the runtime explicitly returns no delta.
+        if runtime_result.orchestration_delta is None and str(result.get("status") or "") in terminal_statuses:
             if not canonical_task_result:
                 canonical_task_result = normalize_runtime_task_result(
                     result.get("final_answer") or result.get("answer") or result,
                     usage=dict(runtime_result.usage or {}),
-                    framework_details={"framework": "hermes"},
+                    framework_details={},
                 ).to_dict()
             await apply_neutral_task_completion(
                 task_id=task.id,

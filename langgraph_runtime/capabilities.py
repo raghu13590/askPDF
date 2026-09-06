@@ -231,5 +231,7 @@ def langgraph_capabilities(
             "required_input_fields": ["task_context", "resolved_spec", "embedding_model"],
             "supports_pause_resume": bool(checkpoint),
             "supports_course_correction": bool(checkpoint),
+            "budget_boundary_owner": "runtime",
+            "grounding_owner": "runtime",
         },
     )

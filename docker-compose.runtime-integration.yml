@@ -265,7 +265,7 @@ services:
       fake-llm:
         condition: service_healthy
       rag-service:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - runtime_integration_hermes_data:/opt/data
       - ./hermes_runtime/hermes_pinned_patch:/opt/askpdf-hermes-pinned-patch:ro
@@ -352,7 +352,7 @@ services:
       hermes:
         condition: service_healthy
       rag-service:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - runtime_integration_hermes_state:/var/lib/hermes
       - runtime_integration_hermes_data:/opt/data

@@ -50,7 +50,7 @@ class TestHealthEndpoint:
         assert data["agent_task_worker"] == "running"
         assert "version" in data
 
-    def test_health_check_reports_failed_integrated_worker(self, client):
+    def test_health_check_remains_live_when_integrated_worker_fails(self, client):
         from main import app
 
         app.state.agent_task_worker_status = "failed"
@@ -59,8 +59,8 @@ class TestHealthEndpoint:
         finally:
             app.state.agent_task_worker_status = "running"
 
-        assert response.status_code == 503
-        assert response.json()["status"] == "degraded"
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
         assert response.json()["agent_task_worker"] == "failed"
 
     @pytest.mark.asyncio

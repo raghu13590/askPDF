@@ -694,6 +694,8 @@ def create_app() -> FastAPI:
                     "required_input_fields": ["task_context", "resolved_spec"],
                     "supports_pause_resume": False,
                     "supports_course_correction": True,
+                    "budget_boundary_owner": "product",
+                    "grounding_owner": "product",
                 },
             })},
         )

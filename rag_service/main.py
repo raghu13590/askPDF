@@ -10,6 +10,7 @@ This module handles:
 import logging
 import os
 import asyncio
+import time
 from contextlib import asynccontextmanager, suppress
 
 from dotenv import load_dotenv
@@ -68,6 +69,48 @@ from runtime_protocol.configuration import validate_runtime_environment
 AGENT_TASK_WORKER_SHUTDOWN_GRACE_SECONDS = 30
 RETAINED_EXECUTION_SHUTDOWN_GRACE_SECONDS = 30
 MCP_HTTP_APP = get_http_app()
+
+
+async def _probe_runtime_readiness() -> None:
+    """Refresh product readiness without making startup depend on runtimes."""
+    registry = get_runtime_registry()
+    results: dict[str, dict[str, object]] = {}
+
+    async def probe(adapter: object) -> None:
+        identity = registry.deployment_id(adapter)  # type: ignore[arg-type]
+        try:
+            capabilities = await adapter.deployment_capabilities()  # type: ignore[attr-defined]
+            results[identity] = {
+                "status": "ready",
+                "protocol_version": capabilities.protocol_version,
+                "minimum_compatible_version": capabilities.minimum_compatible_version,
+            }
+        except Exception as exc:
+            results[identity] = {
+                "status": "unavailable",
+                "reason": type(exc).__name__,
+            }
+
+    adapters = [
+        adapter for adapter in registry.adapters()
+        if getattr(adapter, "framework", "") != "hermes" or hermes_runtime_enabled()
+    ]
+    await asyncio.gather(*(probe(adapter) for adapter in adapters))
+    app.state.runtime_readiness = {
+        "checked_at": time.time(),
+        "runtimes": results,
+        "ready": bool(results) and all(item["status"] == "ready" for item in results.values()),
+    }
+
+
+async def _runtime_readiness_loop(stop: asyncio.Event) -> None:
+    interval = max(1.0, float(os.getenv("AGENT_RUNTIME_DEPENDENCY_REFRESH_SECONDS", "30")))
+    while not stop.is_set():
+        await _probe_runtime_readiness()
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            continue
 HERMES_OFFLINE_MCP_APP = get_http_app(
     allowed_tools=frozenset(HERMES_BASE_TOOL_IDS), require_execution_token=True,
 )
@@ -123,12 +166,15 @@ async def lifespan(app: FastAPI):
     embedding_job_task = None
     agent_task_worker_stop = None
     agent_task_worker = None
+    runtime_readiness_stop = None
+    runtime_readiness_task = None
     mcp_lifespans = []
     try:
         validate_runtime_environment(service="control_plane")
         if hermes_runtime_enabled():
             validate_hermes_model_compatibility()
         get_runtime_registry().initialize()
+        app.state.runtime_readiness = {"checked_at": None, "runtimes": {}, "ready": False}
         # Keep cleanup active from the first allocation onward.  In
         # particular, database or MCP startup failures must not strand the
         # application-scoped HTTP clients initialized above them.
@@ -159,6 +205,8 @@ async def lifespan(app: FastAPI):
         agent_task_worker.add_done_callback(
             lambda task: _record_agent_task_worker_completion(app, task)
         )
+        runtime_readiness_stop = asyncio.Event()
+        runtime_readiness_task = asyncio.create_task(_runtime_readiness_loop(runtime_readiness_stop))
         # The SDK streamable-HTTP session manager is single-use. Rebuild the
         # mounted app for every FastAPI lifespan so TestClient restarts,
         # reloads, and application shutdown/startup cycles get a fresh manager.
@@ -213,6 +261,9 @@ async def lifespan(app: FastAPI):
                     await agent_task_worker
             except Exception:
                 logger.exception("Agent task worker exited unexpectedly")
+        if runtime_readiness_task is not None and runtime_readiness_stop is not None:
+            runtime_readiness_stop.set()
+            await runtime_readiness_task
         if memory_maintenance_task is not None and memory_maintenance_stop is not None:
             memory_maintenance_stop.set()
             await memory_maintenance_task
@@ -312,15 +363,25 @@ app.include_router(tools_router, prefix="/api")
 async def health_check():
     """Service health check endpoint."""
     worker_status = getattr(app.state, "agent_task_worker_status", "not_started")
-    healthy = worker_status == "running"
     payload = {
-        "status": "ok" if healthy else "degraded",
+        "status": "ok",
         "service": "rag-service",
         "version": "2.0.0",
         "mode": "modular",
         "agent_task_worker": worker_status,
     }
-    return payload if healthy else JSONResponse(status_code=503, content=payload)
+    return payload
+
+
+@app.get("/ready")
+async def product_readiness():
+    """Readiness for product traffic, including mandatory external runtimes."""
+    payload = {
+        "status": "ok" if getattr(app.state, "runtime_readiness", {}).get("ready") else "unavailable",
+        "service": "rag-service",
+        "runtime_readiness": getattr(app.state, "runtime_readiness", {}),
+    }
+    return payload if payload["status"] == "ok" else JSONResponse(status_code=503, content=payload)
 
 
 app.mount("/internal/mcp/", MCP_HTTP_APP, name="internal-mcp")

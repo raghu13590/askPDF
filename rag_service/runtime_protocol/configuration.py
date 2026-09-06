@@ -278,14 +278,12 @@ def validate_runtime_environment(
             if transport == "loopback_http":
                 _url("MCP_LOOPBACK_URL", values, errors)
         else:
-            # An external runtime may be started before the control-plane MCP
-            # endpoint is reachable, or with MCP intentionally unconfigured in
-            # a local test.  A configured transport/URL is still strict: the
-            # only legal external transport is loopback HTTP and malformed
-            # URLs fail startup rather than becoming a later admission error.
-            transport = values.get("MCP_TRANSPORT", "").strip()
-            loopback_url = values.get("MCP_LOOPBACK_URL", "").strip()
-            if transport and transport != "loopback_http":
+            # External runtimes always use the product MCP endpoint.  Reachability
+            # is a readiness concern, but missing or malformed configuration is
+            # a startup error.
+            transport = _required("MCP_TRANSPORT", values, errors)
+            loopback_url = _required("MCP_LOOPBACK_URL", values, errors)
+            if transport is not None and transport != "loopback_http":
                 errors.append(f"MCP_TRANSPORT must be 'loopback_http' for {service}")
             if loopback_url:
                 _url("MCP_LOOPBACK_URL", values, errors)
