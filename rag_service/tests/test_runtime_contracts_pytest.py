@@ -50,6 +50,7 @@ from app.runtime.observability import normalize_runtime_event
 from app.agent_workflows.interrupts import AgentRunInterruptError, normalize_pending_interrupt_payload
 from app.runtime.product_capabilities import project_public_capabilities
 from app.runtime.task_results import normalize_runtime_task_result, runtime_task_result_summary
+from app.runtime.behavior import snapshot_runtime_behavior
 from app.services.agent_task_runtime_projection import runtime_delta_conflict_details
 from langgraph_runtime.workflows.deep_research_execution import (
     RuntimeBudgetMeter,
@@ -67,6 +68,21 @@ def _runtime_budget_snapshot(limits):
     }
     zero = {key: 0 for key in dimensions}
     return {"tranche_index": 1, "tranche_limits": dimensions, "tranche_usage": zero, "lifetime_usage": dict(zero)}
+
+
+def test_runtime_behavior_snapshot_requires_all_neutral_ownership_fields():
+    behavior = {
+        "continuation_semantics": "same_run_safe_boundary",
+        "supports_course_correction": True,
+        "supports_orchestration_delta": True,
+        "usage_accounting_owner": "runtime",
+        "budget_boundary_owner": "product",
+        "grounding_owner": "product",
+    }
+
+    assert snapshot_runtime_behavior(behavior) == behavior
+    with pytest.raises(ValueError, match="grounding_owner"):
+        snapshot_runtime_behavior({key: value for key, value in behavior.items() if key != "grounding_owner"})
 from langgraph_runtime.workflows.deep_research_nodes import deep_task_scheduler
 from langgraph_runtime.adapter import _result_from_graph
 from langgraph_runtime.workflows import deep_research_nodes
@@ -762,6 +778,22 @@ def test_result_parser_requires_status_on_wire_envelopes():
 @pytest.mark.parametrize("status", ["failed", "cancelled", "timed_out"])
 def test_runtime_service_result_preserves_failure_status_with_partial_text(status):
     result = normalize_runtime_service_task_result({"status": status, "text": "partial output"})
+
+    assert result.status.value == status
+    assert result.text == "partial output"
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled", "timed_out"])
+@pytest.mark.parametrize("quality", [
+    {"warnings": [{"code": "partial"}]},
+    {"gaps": ["source unavailable"]},
+])
+def test_runtime_service_result_does_not_promote_failure_with_quality_metadata(status, quality):
+    result = normalize_runtime_service_task_result({
+        "status": status,
+        "text": "partial output",
+        **quality,
+    })
 
     assert result.status.value == status
     assert result.text == "partial output"

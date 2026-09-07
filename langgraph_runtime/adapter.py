@@ -290,6 +290,8 @@ def _result_from_graph(
                 "required_input_fields": ["task_context", "resolved_spec", "embedding_model"],
                 "supports_pause_resume": True,
                 "supports_course_correction": True,
+                "budget_boundary_owner": "runtime",
+                "grounding_owner": "runtime",
             },
         },
         continuation=continuation,

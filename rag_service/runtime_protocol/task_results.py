@@ -101,7 +101,11 @@ def normalize_runtime_task_result(value: Any, *, artifacts: tuple[RuntimeArtifac
     if not (text or structured or artifacts):
         status = RuntimeTaskResultStatus.FAILED
         error = error or {"code": "task_result_empty", "retryable": True}
-    elif warnings or gaps:
+    elif (warnings or gaps) and status not in {
+        RuntimeTaskResultStatus.FAILED,
+        RuntimeTaskResultStatus.TIMED_OUT,
+        RuntimeTaskResultStatus.CANCELLED,
+    }:
         status = RuntimeTaskResultStatus.COMPLETED_WITH_WARNINGS
     return RuntimeTaskResult(
         status=status, text=text,

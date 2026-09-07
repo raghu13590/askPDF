@@ -32,7 +32,10 @@ from runtime_protocol.contracts import (
     RuntimeOperationId,
     RuntimeTaskContext,
 )
-from app.runtime.capability_resolver import require_capability
+from app.runtime.capability_resolver import (
+    require_capability,
+    resolve_definition_capability_resolution,
+)
 from runtime_protocol.errors import RuntimeError as AgentRuntimeError
 from app.runtime.catalog import (
     continuation_from_run,
@@ -48,6 +51,7 @@ from app.runtime.behavior import (
     continuation_is_linked,
     product_owns_budget_boundary,
     product_owns_grounding,
+    snapshot_runtime_behavior,
     supports_course_correction,
 )
 
@@ -397,6 +401,23 @@ async def ensure_task_run(task_id: str):
     config["use_web_search"] = bool((task.config_json or {}).get("use_web_search"))
     resolved["config"] = config
     frozen_spec = dict(await provider.normalize(definition, resolved))
+    capability_resolution = await resolve_definition_capability_resolution(
+        definition, registry=get_runtime_registry(),
+    )
+    if not capability_resolution.runtime_available:
+        raise AgentRuntimeError(
+            "runtime_unavailable",
+            "The selected runtime is unavailable for task admission",
+            retryable=True,
+        )
+    runtime_behavior = snapshot_runtime_behavior(capability_resolution.capabilities.behavior)
+    task_start = capability_resolution.capabilities.operations.get(RuntimeOperationId.TASK_START)
+    if task_start is None or not task_start.enabled:
+        raise AgentRuntimeError(
+            "runtime_capability_unsupported",
+            "The selected runtime does not support task execution",
+            retryable=False,
+        )
     metadata = dict(getattr(workflow, "metadata_json", None) or {})
     version = int(metadata.get("version") or workflow.schema_version or 1)
     linked_corrections = await tasks.pending_course_corrections(task.id) if active is not None else []
@@ -416,6 +437,11 @@ async def ensure_task_run(task_id: str):
             "agent_task_id": task.id,
             "runtime_started": False,
             "course_corrections": linked_corrections,
+            "runtime_behavior": runtime_behavior,
+            "runtime_capability": {
+                "protocol_version": capability_resolution.capabilities.protocol_version,
+                "minimum_compatible_version": capability_resolution.capabilities.minimum_compatible_version,
+            },
         },
     )
     # attach_run reloads the winning row in its own session, so apply the
@@ -707,8 +733,15 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
                     "retryable": False,
                 },
             )
-        runtime_behavior = dict((runtime_result.runtime_metadata or {}).get("runtime_behavior") or {})
-        if runtime_behavior.get("supports_orchestration_delta") and runtime_result.orchestration_delta is None:
+        returned_behavior = dict((runtime_result.runtime_metadata or {}).get("runtime_behavior") or {})
+        persisted_behavior = dict((run.run_metadata_json or {}).get("runtime_behavior") or {})
+        if returned_behavior and persisted_behavior and returned_behavior != persisted_behavior:
+            raise AgentRuntimeError(
+                "runtime_behavior_changed",
+                "The runtime returned behavior different from the run admission snapshot",
+                retryable=False,
+            )
+        if persisted_behavior.get("supports_orchestration_delta") and runtime_result.orchestration_delta is None:
             raise AgentRuntimeError(
                 "runtime_task_delta_missing",
                 "The selected runtime did not return the required task orchestration delta",
@@ -716,10 +749,6 @@ async def execute_claimed_task(task_id: str, worker_id: str) -> None:
             )
         if runtime_result.continuation is not None:
             await repository.update_runtime_binding(run.id, runtime_result.continuation)
-        if runtime_result.runtime_metadata.get("runtime_behavior"):
-            await repository.update_run_metadata_fields(run.id, {
-                "runtime_behavior": dict(runtime_result.runtime_metadata["runtime_behavior"]),
-            })
         if runtime_result.checkpoint_boundary_available is not None:
             await repository.update_run_metadata_fields(run.id, {
                 "checkpoint_boundary_available": runtime_result.checkpoint_boundary_available,

@@ -63,6 +63,34 @@ class TestHealthEndpoint:
         assert response.json()["status"] == "ok"
         assert response.json()["agent_task_worker"] == "failed"
 
+    def test_product_readiness_requires_worker_and_fresh_runtime_probe(self, client):
+        from main import app
+
+        previous_worker = getattr(app.state, "agent_task_worker_status", None)
+        previous_readiness = getattr(app.state, "runtime_readiness", None)
+        app.state.runtime_readiness = {
+            "checked_at": __import__("time").time(),
+            "runtimes": {"langgraph:langgraph_graph": {"status": "ready"}},
+            "ready": True,
+        }
+        try:
+            app.state.agent_task_worker_status = "failed"
+            response = client.get("/ready")
+            assert response.status_code == 503
+            assert response.json()["agent_task_worker"] == "failed"
+
+            app.state.agent_task_worker_status = "running"
+            response = client.get("/ready")
+            assert response.status_code == 200
+
+            app.state.runtime_readiness["checked_at"] = 0
+            response = client.get("/ready")
+            assert response.status_code == 503
+            assert response.json()["runtime_readiness"]["fresh"] is False
+        finally:
+            app.state.agent_task_worker_status = previous_worker
+            app.state.runtime_readiness = previous_readiness
+
     @pytest.mark.asyncio
     async def test_integrated_worker_completion_marks_unexpected_failure(self):
         from main import app, _record_agent_task_worker_completion

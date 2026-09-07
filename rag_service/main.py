@@ -376,10 +376,30 @@ async def health_check():
 @app.get("/ready")
 async def product_readiness():
     """Readiness for product traffic, including mandatory external runtimes."""
+    worker_status = getattr(app.state, "agent_task_worker_status", "not_started")
+    runtime_readiness = getattr(app.state, "runtime_readiness", {})
+    checked_at = runtime_readiness.get("checked_at")
+    try:
+        freshness_window = max(
+            5.0,
+            3.0 * float(os.getenv("AGENT_RUNTIME_DEPENDENCY_REFRESH_SECONDS", "30")),
+        )
+    except (TypeError, ValueError):
+        freshness_window = 5.0
+    runtime_fresh = (
+        isinstance(checked_at, (int, float))
+        and time.time() - float(checked_at) <= freshness_window
+    )
+    ready = (
+        worker_status == "running"
+        and bool(runtime_readiness.get("ready"))
+        and runtime_fresh
+    )
     payload = {
-        "status": "ok" if getattr(app.state, "runtime_readiness", {}).get("ready") else "unavailable",
+        "status": "ok" if ready else "unavailable",
         "service": "rag-service",
-        "runtime_readiness": getattr(app.state, "runtime_readiness", {}),
+        "agent_task_worker": worker_status,
+        "runtime_readiness": {**runtime_readiness, "fresh": runtime_fresh},
     }
     return payload if payload["status"] == "ok" else JSONResponse(status_code=503, content=payload)
 
